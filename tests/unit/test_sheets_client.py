@@ -76,6 +76,55 @@ class TestSheetsClientAppendTrades:
         assert len(fake_service.appends) == 0
 
 
+class TestSheetsClientEnsureHistoryHeader:
+    def test_writes_header_when_sheet_is_empty(self) -> None:
+        fake_service = FakeSheetsService()
+        client = SheetsClient(fake_service, "sheet123")
+
+        client.ensure_history_header()
+
+        assert len(fake_service.writes) == 1
+        range_name, values = fake_service.writes[0]
+        assert range_name == "history!A1"
+        assert values == [
+            [
+                "Opened At",
+                "Wallet",
+                "Market",
+                "Side",
+                "Size",
+                "Entry Price",
+                "Exit Price",
+                "Status",
+                "PnL",
+                "Closed At",
+            ]
+        ]
+
+    def test_does_not_overwrite_existing_header(self) -> None:
+        fake_service = FakeSheetsService()
+        # Simulate existing header
+        fake_service._storage["history!A1"] = [
+            [
+                "Old Header",
+                "x",
+                "x",
+                "x",
+                "x",
+                "x",
+                "x",
+                "x",
+                "x",
+                "x",
+            ]
+        ]
+        client = SheetsClient(fake_service, "sheet123")
+
+        client.ensure_history_header()
+
+        assert len(fake_service.writes) == 0
+
+
 class TestSheetsClientUpdateAccount:
     def test_writes_account_snapshot(self) -> None:
         fake_service = FakeSheetsService()

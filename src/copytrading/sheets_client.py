@@ -104,6 +104,36 @@ class SheetsClient:
 
         self._append_range("history", values)
 
+    def ensure_history_header(self) -> None:
+        """Write the header row to the 'history' sheet if A1 is empty."""
+        result = (
+            self._service.spreadsheets()
+            .values()
+            .get(spreadsheetId=self._sheet_id, range="history!A1:A1")
+            .execute()
+        )
+        existing = result.get("values", [])
+        if existing and existing[0]:
+            return  # header already present
+
+        self._write_range(
+            "history!A1",
+            [
+                [
+                    "Opened At",
+                    "Wallet",
+                    "Market",
+                    "Side",
+                    "Size",
+                    "Entry Price",
+                    "Exit Price",
+                    "Status",
+                    "PnL",
+                    "Closed At",
+                ]
+            ],
+        )
+
     def update_account(self, snapshot: AccountSnapshot) -> None:
         """Write account summary to the 'account' sheet."""
         values: list[list[str]] = [

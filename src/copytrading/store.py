@@ -142,7 +142,8 @@ class Store:
 
     def upsert_market(self, market: Market) -> None:
         self.conn.execute(
-            """INSERT INTO markets (condition_id, question, token_id_yes, token_id_no, active, fetched_at)
+            """INSERT INTO markets
+               (condition_id, question, token_id_yes, token_id_no, active, fetched_at)
                VALUES (?, ?, ?, ?, ?, ?)
                ON CONFLICT(condition_id) DO UPDATE SET
                    question=excluded.question,

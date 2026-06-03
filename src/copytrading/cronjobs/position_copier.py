@@ -30,6 +30,7 @@ def run() -> None:
     settings = Settings.from_env()
     poly = PolyClient()
     sheets = SheetsClient.from_settings(settings)
+    sheets.ensure_history_header()
 
     with Store() as store:
         # Get current account equity

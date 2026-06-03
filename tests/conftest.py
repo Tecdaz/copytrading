@@ -59,6 +59,8 @@ class FakeSheetsService:
     def __init__(self) -> None:
         self._writes: list[tuple[str, list[list[str]]]] = []
         self._appends: list[tuple[str, list[list[str]]]] = []
+        # Backing storage for get(): maps range -> values (e.g. "history!A1" -> [[...]])
+        self._storage: dict[str, list[list[str]]] = {}
 
     def spreadsheets(self) -> FakeSheetsService:
         return self
@@ -74,6 +76,7 @@ class FakeSheetsService:
         body: dict[str, Any],
     ) -> FakeSheetsService:
         self._writes.append((range, body["values"]))
+        self._storage[range] = body["values"]
         return self
 
     def append(
@@ -84,9 +87,34 @@ class FakeSheetsService:
         body: dict[str, Any],
     ) -> FakeSheetsService:
         self._appends.append((range, body["values"]))
+        # Append to existing storage if present
+        existing = self._storage.get(range, [])
+        self._storage[range] = existing + body["values"]
         return self
 
-    def execute(self) -> dict[str, int]:
+    def get(
+        self,
+        spreadsheetId: str,  # noqa: N803 - matches Google API
+        range: str,  # noqa: A002
+    ) -> FakeSheetsService:
+        # Match the sheet prefix (e.g. "history!A1:A1" matches stored "history!A1")
+        sheet_prefix = range.split("!")[0] if "!" in range else range
+        self._last_get_range = range
+        for key, vals in self._storage.items():
+            if key.startswith(sheet_prefix + "!") or key == sheet_prefix:
+                self._last_get_result = vals
+                break
+        else:
+            self._last_get_result = []
+        return self
+
+    def execute(self) -> dict[str, Any]:
+        # If a get() was just called, return its result
+        if hasattr(self, "_last_get_range"):
+            result: dict[str, Any] = {"values": self._last_get_result}
+            delattr(self, "_last_get_range")
+            delattr(self, "_last_get_result")
+            return result
         return {"updatedRows": 1}
 
     @property
