@@ -66,6 +66,52 @@ class TestSheetsClientAppendTrades:
         assert "history" in range_name
         assert len(values) == 1
         assert values[0][1] == "0xabc"  # copied_from_wallet
+        assert values[0][10] == ""  # no market_url set on this trade
+
+    def test_appends_market_link_column(self) -> None:
+        fake_service = FakeSheetsService()
+        client = SheetsClient(fake_service, "sheet123")
+
+        trades = [
+            PaperTrade(
+                copied_from_wallet="0xabc",
+                market_condition_id="0xmarket123",
+                side="yes",
+                size=Decimal("10"),
+                entry_price=Decimal("0.50"),
+                status="open",
+                opened_at=datetime(2024, 1, 1, tzinfo=UTC),
+                market_url="https://polymarket.com/market/0xmarket123",
+            )
+        ]
+
+        client.append_trades(trades)
+
+        _, values = fake_service.appends[0]
+        # Row should have 11 columns (10 + market link)
+        assert len(values[0]) == 11
+        assert values[0][10] == "https://polymarket.com/market/0xmarket123"
+
+    def test_empty_market_url_writes_empty_string(self) -> None:
+        fake_service = FakeSheetsService()
+        client = SheetsClient(fake_service, "sheet123")
+
+        trades = [
+            PaperTrade(
+                copied_from_wallet="0xabc",
+                market_condition_id="cond1",
+                side="yes",
+                size=Decimal("10"),
+                entry_price=Decimal("0.50"),
+                status="open",
+                opened_at=datetime(2024, 1, 1, tzinfo=UTC),
+            )
+        ]
+
+        client.append_trades(trades)
+
+        _, values = fake_service.appends[0]
+        assert values[0][10] == ""  # No market_url set
 
     def test_empty_trades_noop(self) -> None:
         fake_service = FakeSheetsService()
@@ -98,6 +144,7 @@ class TestSheetsClientEnsureHistoryHeader:
                 "Status",
                 "PnL",
                 "Closed At",
+                "Market Link",
             ]
         ]
 

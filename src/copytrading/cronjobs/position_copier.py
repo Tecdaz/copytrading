@@ -97,6 +97,7 @@ def copy_positions(
                 entry_price=pos.avg_price,
                 status="open",
                 opened_at=datetime.now(UTC),
+                market_url=f"https://polymarket.com/market/{pos.market_condition_id}",
             )
             trade_id = store.insert_paper_trade(trade)
             trade = dataclasses.replace(trade, id=trade_id)

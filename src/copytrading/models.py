@@ -63,6 +63,7 @@ class PaperTrade:
     exit_price: Decimal | None = None
     opened_at: datetime | None = None
     closed_at: datetime | None = None
+    market_url: str = ""
     id: int | None = None
 
 

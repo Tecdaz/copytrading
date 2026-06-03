@@ -100,6 +100,7 @@ class SheetsClient:
                     t.status,
                     str(t.pnl),
                     t.closed_at.isoformat() if t.closed_at else "",
+                    t.market_url,
                 ]
             )
 
@@ -131,6 +132,7 @@ class SheetsClient:
                     "Status",
                     "PnL",
                     "Closed At",
+                    "Market Link",
                 ]
             ],
         )
