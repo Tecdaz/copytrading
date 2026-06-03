@@ -1,0 +1,76 @@
+schema: spec-driven
+
+# ----------------------------------------------------------------------------
+# copytrading — Polymarket copy-trader
+# ----------------------------------------------------------------------------
+
+context: |
+  Domain: Polymarket copy-trading bot. Python cronjobs that mirror top wallets.
+  Stack: Python 3.13 + uv, SQLite (stdlib), Google Sheets API, Polymarket CLOB.
+  Architecture: Three cronjob scripts (leaderboard discovery, position copier,
+    account tracker) + SQLite store + Google Sheets output. No web UI.
+  Risk policy: 0.5% of account equity per copied trade; starting balance 200 USDC.
+  Persistence: local SQLite + Google Sheets (leaderboard + history sheets).
+  Style: clean functions, typed with mypy, formatted with ruff.
+
+# ----------------------------------------------------------------------------
+# Project-specific rules per SDD phase
+# ----------------------------------------------------------------------------
+
+rules:
+  proposal:
+    - Include rollback plan for any change that mutates live trading state
+    - Specify how the change interacts with the risk cap (0.5% / 200 USDC)
+    - Identify which cronjob(s) the change touches
+  specs:
+    - Use Given/When/Then for every behavior
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Quantify numeric requirements (e.g. "top 20 wallets", "0.5% equity")
+    - Cover both happy path AND failure modes (API errors, partial fills)
+  design:
+    - Include sequence diagrams for the copier loop (discover → size → order → fill)
+    - Document idempotency guarantees for cronjob re-runs
+    - Document the risk-cap math (account_equity * 0.005 = max_notional)
+    - State how secrets (private key, GCP service account) are loaded
+  tasks:
+    - Group by phase, hierarchical numbering (1, 1.1, 1.2)
+    - Every task completable in a single session
+    - Always start a change with a "bootstrap tooling" task if not yet done
+  apply:
+    tdd: false            # TDD flips to true once pytest is wired (see tasks)
+    test_command: "uv run pytest"
+    follow_existing_patterns: true
+  verify:
+    test_command: "uv run pytest"
+    build_command: "uv run python -m compileall src"
+    coverage_threshold: 80
+  archive:
+    - Warn before merging destructive deltas (e.g. wiping the live DB)
+
+# ----------------------------------------------------------------------------
+# Testing capabilities (snapshot, refresh via sdd-init if tooling changes)
+# ----------------------------------------------------------------------------
+
+testing:
+  strict_tdd: false        # Disabled: no runner installed yet — first change must set up pytest
+  detected: 2026-06-03
+  runner:
+    command: "uv run pytest"
+    framework: "pytest (planned)"
+    installed: false
+  layers:
+    unit:        { available: false, tool: "—" }
+    integration: { available: false, tool: "—" }
+    e2e:         { available: false, tool: "—" }
+  coverage:
+    available: false
+    command: "uv run pytest --cov=copytrading --cov-report=term-missing (planned)"
+  quality:
+    linter:       { available: false, command: "uv run ruff check . (planned)" }
+    type_checker: { available: false, command: "uv run mypy src (planned)" }
+    formatter:    { available: false, command: "uv run ruff format . (planned)" }
+  notes: |
+    No Python source exists yet. Bootstrap task 1.x must: uv init, add deps
+    (polymarket-api, google-api-python-client, google-auth), dev deps
+    (pytest, pytest-cov, ruff, mypy), and wire the commands above. Once
+    that lands, flip `rules.apply.tdd` to true and `strict_tdd` to true.

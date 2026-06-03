@@ -1,0 +1,53 @@
+[project]
+name = "copytrading"
+version = "0.1.0"
+description = "Polymarket copy-trading bot — three cronjobs + SQLite + Google Sheets."
+readme = "README.md"
+authors = [
+    { name = "Santiago Arias", email = "santi99oca@gmail.com" }
+]
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "google-api-python-client>=2.197.0",
+    "google-auth>=2.53.0",
+    "py-clob-client>=0.34.6",
+    "python-dotenv>=1.2.2",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.6,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.1.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.15",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RET"]
+
+[tool.ruff.format]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["py_clob_client.*", "googleapiclient.*", "google.oauth2.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"
