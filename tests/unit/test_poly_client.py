@@ -131,3 +131,70 @@ class TestPolyClientGetOrderbook:
 
         assert "bids" in book
         assert "asks" in book
+
+
+class TestPolyClientGetLeaderboard:
+    def test_fetch_daily_leaderboard(self) -> None:
+        fake = FakeHTTPClient(
+            responses={
+                "https://data-api.polymarket.com/v1/leaderboard": [
+                    {
+                        "rank": "1",
+                        "proxyWallet": "0xabc",
+                        "userName": "trader1",
+                        "vol": 5000.0,
+                        "pnl": 1000.0,
+                    },
+                    {
+                        "rank": "2",
+                        "proxyWallet": "0xdef",
+                        "userName": "trader2",
+                        "vol": 3000.0,
+                        "pnl": 750.0,
+                    },
+                ]
+            }
+        )
+
+        with patch("copytrading.poly_client.httpx.Client", return_value=fake):
+            client = PolyClient()
+            entries = client.get_leaderboard(time_period="DAY", limit=20)
+
+        assert len(entries) == 2
+        assert entries[0]["proxyWallet"] == "0xabc"
+        assert entries[0]["pnl"] == 1000.0
+
+        # Verify the correct params were sent
+        assert len(fake.requests) == 1
+        url, params = fake.requests[0]
+        assert url == "https://data-api.polymarket.com/v1/leaderboard"
+        assert params == {"timePeriod": "DAY", "limit": 20, "orderBy": "PNL"}
+
+    def test_leaderboard_default_time_period_is_day(self) -> None:
+        fake = FakeHTTPClient(
+            responses={"https://data-api.polymarket.com/v1/leaderboard": []}
+        )
+
+        with patch("copytrading.poly_client.httpx.Client", return_value=fake):
+            client = PolyClient()
+            client.get_leaderboard()
+
+        url, params = fake.requests[0]
+        assert params is not None
+        assert params["timePeriod"] == "DAY"
+
+    def test_leaderboard_http_error_raises_poly_error(self) -> None:
+        fake = FakeHTTPClient(
+            responses={
+                "https://data-api.polymarket.com/v1/leaderboard": httpx.HTTPStatusError(
+                    "Server error",
+                    request=httpx.Request("GET", "http://test"),
+                    response=httpx.Response(500),
+                )
+            }
+        )
+
+        with patch("copytrading.poly_client.httpx.Client", return_value=fake):
+            client = PolyClient()
+            with pytest.raises(PolyClientError):
+                client.get_leaderboard()

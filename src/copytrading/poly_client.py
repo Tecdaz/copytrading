@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Literal
 
 import httpx
 
 from copytrading.models import Market, Position
 
 BASE_URL = "https://clob.polymarket.com"
+DATA_API_URL = "https://data-api.polymarket.com"
+LEADERBOARD_TIME_PERIODS = Literal["DAY", "WEEK", "MONTH", "ALL"]
 
 
 class PolyClientError(Exception):
@@ -25,6 +28,38 @@ class PolyClient:
     def __init__(self, base_url: str = BASE_URL, timeout: float = 30.0) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+
+    def get_leaderboard(
+        self,
+        time_period: LEADERBOARD_TIME_PERIODS = "DAY",
+        limit: int = 20,
+        order_by: Literal["PNL", "VOL"] = "PNL",
+    ) -> list[dict[str, object]]:
+        """Fetch top traders from the Polymarket data API leaderboard.
+
+        Args:
+            time_period: DAY, WEEK, MONTH, or ALL. Default DAY.
+            limit: Max traders to return (1-50). Default 20.
+            order_by: PNL or VOL. Default PNL.
+
+        Returns:
+            List of leaderboard entries with rank, proxyWallet, userName, pnl, vol, etc.
+        """
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.get(
+                    f"{DATA_API_URL}/v1/leaderboard",
+                    params={
+                        "timePeriod": time_period,
+                        "limit": limit,
+                        "orderBy": order_by,
+                    },
+                )
+                response.raise_for_status()
+                data: list[dict[str, object]] = response.json()
+                return data
+        except httpx.HTTPError as e:
+            raise PolyClientError(f"Failed to fetch leaderboard: {e}") from e
 
     def get_markets(self) -> list[Market]:
         """Fetch all active markets."""

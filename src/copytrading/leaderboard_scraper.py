@@ -12,11 +12,11 @@ import httpx
 class LeaderboardEntry:
     """Entry from Polymarket leaderboard."""
 
-    rank: int
     address: str
     username: str
     pnl: float
     volume: float
+    rank: int = 0
     profile_url: str = ""
 
 
