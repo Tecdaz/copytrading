@@ -16,7 +16,6 @@ from copytrading.config import Settings
 from copytrading.models import AccountSnapshot, PaperTrade, Wallet
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-TOKEN_FILE = ".google_token.json"
 
 
 class SheetsClientError(Exception):
@@ -35,9 +34,11 @@ class SheetsClient:
         """Create a SheetsClient using OAuth2 credentials.
 
         Uses the client secret file from settings to authenticate.
-        Tokens are cached in .google_token.json for subsequent runs.
+        Tokens are cached in the path specified by settings.google_token_path.
         """
-        creds = cls._get_credentials(settings.google_sheets_credentials_path)
+        creds = cls._get_credentials(
+            settings.google_sheets_credentials_path, settings.google_token_path
+        )
         try:
             service = build("sheets", "v4", credentials=creds)
         except Exception as e:
@@ -46,18 +47,26 @@ class SheetsClient:
         return cls(service, settings.google_sheet_id)
 
     @classmethod
-    def _get_credentials(cls, client_secret_path: Path) -> Credentials:
-        """Load or refresh OAuth2 credentials."""
+    def _get_credentials(
+        cls, client_secret_path: Path, token_path: Path
+    ) -> Credentials:
+        """Load or refresh OAuth2 credentials.
+
+        Args:
+            client_secret_path: Path to OAuth client secret JSON (for first-time auth).
+            token_path: Path to cached token JSON (used for refresh in headless envs).
+        """
         creds: Credentials | None = None
-        token_path = Path(TOKEN_FILE)
 
         if token_path.exists():
             creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)  # type: ignore[no-untyped-call]
 
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
+                # Headless: refresh without browser
                 creds.refresh(Request())  # type: ignore[no-untyped-call]
             else:
+                # First-time auth: requires browser
                 flow = InstalledAppFlow.from_client_secrets_file(str(client_secret_path), SCOPES)
                 creds = flow.run_local_server(port=0)
 

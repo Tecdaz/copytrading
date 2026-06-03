@@ -21,6 +21,20 @@ class TestSettings:
 
         assert settings.google_sheets_credentials_path == Path("/tmp/creds.json")
         assert settings.google_sheet_id == "sheet123"
+        # Default token path when GOOGLE_TOKEN_PATH is not set
+        assert settings.google_token_path == Path(".google_token.json")
+
+    def test_from_env_custom_token_path(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setattr("copytrading.config.load_dotenv", lambda: None)
+        monkeypatch.setenv("GOOGLE_SHEETS_CREDENTIALS_PATH", "/tmp/creds.json")
+        monkeypatch.setenv("GOOGLE_SHEET_ID", "sheet123")
+        monkeypatch.setenv("GOOGLE_TOKEN_PATH", "/var/secrets/google_token.json")
+
+        settings = Settings.from_env()
+
+        assert settings.google_token_path == Path("/var/secrets/google_token.json")
 
     def test_from_env_missing_sheet_id(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
