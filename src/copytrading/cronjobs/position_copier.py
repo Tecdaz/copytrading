@@ -13,7 +13,7 @@ from decimal import Decimal
 from copytrading.config import Settings
 from copytrading.models import PaperTrade, Wallet
 from copytrading.poly_client import PolyClient, PolyClientError
-from copytrading.risk import calculate_position_size, validate_trade
+from copytrading.risk import calculate_position_size, validate_exposure, validate_trade
 from copytrading.sheets_client import SheetsClient
 from copytrading.store import Store
 
@@ -43,6 +43,7 @@ def copy_positions(
 
     new_trades: list[PaperTrade] = []
     seen_keys: set[tuple[str, str, str]] = set()
+    current_exposure = sum(t.size for t in open_trades)
 
     # --- Detect new positions across ALL wallets ---
     for wallet in wallets:
@@ -81,6 +82,13 @@ def copy_positions(
                 )
                 continue
 
+            if not validate_exposure(current_exposure, size, equity):
+                logger.warning(
+                    "Skipping trade for %s — total exposure would exceed 10%% of equity",
+                    wallet.address,
+                )
+                continue
+
             trade = PaperTrade(
                 copied_from_wallet=wallet.address,
                 market_condition_id=pos.market_condition_id,
@@ -93,6 +101,7 @@ def copy_positions(
             trade_id = store.insert_paper_trade(trade)
             trade = dataclasses.replace(trade, id=trade_id)
             new_trades.append(trade)
+            current_exposure += size
             logger.info(
                 "Opened paper trade #%d: %s %s on %s (size=%s, price=%s)",
                 trade_id,

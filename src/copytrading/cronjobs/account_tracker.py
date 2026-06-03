@@ -37,8 +37,8 @@ def run() -> None:
         total_unrealized_pnl = sum((t.pnl for t in open_trades), Decimal("0"))
 
         # Get realized PnL from closed trades
-        # (In a full implementation, we'd query closed trades too)
-        current_equity = prev_equity + total_unrealized_pnl
+        realized_pnl = store.get_realized_pnl()
+        current_equity = prev_equity + total_unrealized_pnl + realized_pnl
 
         # Create new snapshot
         snapshot = AccountSnapshot(
@@ -50,10 +50,11 @@ def run() -> None:
         store.insert_account_snapshot(snapshot)
 
         logger.info(
-            "Account snapshot: equity=%s, open_trades=%d, pnl=%s",
+            "Account snapshot: equity=%s, open_trades=%d, unrealized_pnl=%s, realized_pnl=%s",
             snapshot.equity,
             snapshot.open_trades,
             snapshot.total_pnl,
+            realized_pnl,
         )
 
     # Update Google Sheets

@@ -105,3 +105,118 @@ class TestCopyPositions:
 
             assert len(new_trades) == 0
             assert len(closed_trades) == 0
+
+    def test_exposure_limit_prevents_new_trades_when_at_10_percent(self) -> None:
+        """Verify that new trades are blocked when exposure reaches 10% of equity."""
+        with Store(":memory:") as store:
+            _seed_wallet(store, "0xabc")
+            _seed_wallet(store, "0xdef")
+            _seed_market(store, "0xmkt1")
+            _seed_market(store, "0xmkt2")
+
+            # Equity is 200, so max exposure is 20 (10%)
+            # Fill up to 19 with existing trades
+            existing_positions = []
+            for i in range(19):
+                market_id = f"0xexisting{i}"
+                _seed_market(store, market_id)
+                store.insert_paper_trade(
+                    PaperTrade(
+                        copied_from_wallet="0xabc",
+                        market_condition_id=market_id,
+                        side="yes",
+                        size=Decimal("1.00"),
+                        entry_price=Decimal("0.50"),
+                        status="open",
+                        opened_at=datetime(2024, 1, 1, tzinfo=UTC),
+                    )
+                )
+                # Add to fake API so they stay open
+                existing_positions.append(
+                    Position(
+                        wallet_address="0xabc",
+                        market_condition_id=market_id,
+                        side="yes",
+                        size=Decimal("10"),
+                        avg_price=Decimal("0.50"),
+                    )
+                )
+
+            # API says: 0xabc keeps existing positions, 0xdef has a new position
+            poly: PolyClient = FakePolyClient(  # type: ignore[assignment]
+                {
+                    "0xabc": existing_positions,
+                    "0xdef": [
+                        Position(
+                            wallet_address="0xdef",
+                            market_condition_id="0xmkt1",
+                            side="yes",
+                            size=Decimal("10"),
+                            avg_price=Decimal("0.50"),
+                        )
+                    ],
+                }
+            )
+
+            new_trades, closed_trades = copy_positions(poly, store)
+
+            # 19 + 1 = 20, which is exactly at limit (10% of 200)
+            # This one should pass
+            assert len(new_trades) == 1
+            assert len(closed_trades) == 0
+
+    def test_exposure_limit_blocks_trade_when_already_at_limit(self) -> None:
+        """Verify that new trades are blocked when exposure is already at 10%."""
+        with Store(":memory:") as store:
+            _seed_wallet(store, "0xabc")
+            _seed_wallet(store, "0xdef")
+            _seed_market(store, "0xmkt1")
+
+            # Equity is 200, so max exposure is 20 (10%)
+            # Fill up to exactly 20 with existing trades
+            existing_positions = []
+            for i in range(20):
+                market_id = f"0xexisting{i}"
+                _seed_market(store, market_id)
+                store.insert_paper_trade(
+                    PaperTrade(
+                        copied_from_wallet="0xabc",
+                        market_condition_id=market_id,
+                        side="yes",
+                        size=Decimal("1.00"),
+                        entry_price=Decimal("0.50"),
+                        status="open",
+                        opened_at=datetime(2024, 1, 1, tzinfo=UTC),
+                    )
+                )
+                existing_positions.append(
+                    Position(
+                        wallet_address="0xabc",
+                        market_condition_id=market_id,
+                        side="yes",
+                        size=Decimal("10"),
+                        avg_price=Decimal("0.50"),
+                    )
+                )
+
+            # API says: 0xdef has a new position, but we're already at limit
+            poly: PolyClient = FakePolyClient(  # type: ignore[assignment]
+                {
+                    "0xabc": existing_positions,
+                    "0xdef": [
+                        Position(
+                            wallet_address="0xdef",
+                            market_condition_id="0xmkt1",
+                            side="yes",
+                            size=Decimal("10"),
+                            avg_price=Decimal("0.50"),
+                        )
+                    ],
+                }
+            )
+
+            new_trades, closed_trades = copy_positions(poly, store)
+
+            # Should be rejected because we're already at 20 (10% limit)
+            assert len(new_trades) == 0
+            assert len(closed_trades) == 0

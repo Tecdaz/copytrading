@@ -226,7 +226,7 @@ class Store:
         rows = self.conn.execute(
             """SELECT id, copied_from_wallet, market_condition_id, side, size,
                       entry_price, exit_price, status, pnl, opened_at, closed_at
-               FROM paper_trades WHERE status='open'"""
+                FROM paper_trades WHERE status='open'"""
         ).fetchall()
         return [
             PaperTrade(
@@ -244,6 +244,13 @@ class Store:
             )
             for r in rows
         ]
+
+    def get_realized_pnl(self) -> Decimal:
+        """Sum PnL from all closed trades."""
+        row = self.conn.execute(
+            "SELECT COALESCE(SUM(CAST(pnl AS REAL)), 0) FROM paper_trades WHERE status='closed'"
+        ).fetchone()
+        return Decimal(str(row[0]))
 
     # -- Account snapshot repository --
 

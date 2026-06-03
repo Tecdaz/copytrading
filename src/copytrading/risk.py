@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 DEFAULT_RISK_PCT = Decimal("0.005")  # 0.5%
+MAX_EXPOSURE_PCT = Decimal("0.10")  # 10%
 
 
 def calculate_position_size(
@@ -35,3 +36,20 @@ def validate_trade(amount: Decimal, equity: Decimal) -> bool:
     """
     max_size = equity * DEFAULT_RISK_PCT
     return amount <= max_size
+
+
+def validate_exposure(
+    current_exposure: Decimal, new_trade_size: Decimal, equity: Decimal
+) -> bool:
+    """Check if adding a new trade keeps total exposure within 10% of equity.
+
+    Args:
+        current_exposure: Sum of sizes of all open trades.
+        new_trade_size: Size of the proposed new trade.
+        equity: Current paper account balance in USDC.
+
+    Returns:
+        True if (current_exposure + new_trade_size) <= equity * 0.10.
+    """
+    max_exposure = equity * MAX_EXPOSURE_PCT
+    return (current_exposure + new_trade_size) <= max_exposure
