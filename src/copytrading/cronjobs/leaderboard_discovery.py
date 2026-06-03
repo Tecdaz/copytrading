@@ -1,4 +1,7 @@
-"""Discover top wallets from Polymarket and write to leaderboard sheet.
+"""Discover top wallets from Polymarket leaderboard and write to Google Sheets.
+
+This cronjob scrapes the Polymarket website leaderboard to find the top 20 wallets
+by weekly PnL, stores them in SQLite, and updates the Google Sheets leaderboard.
 
 Usage: uv run python -m copytrading.cronjobs.leaderboard_discovery
 """
@@ -6,70 +9,65 @@ Usage: uv run python -m copytrading.cronjobs.leaderboard_discovery
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
+from decimal import Decimal
 
 from copytrading.config import Settings
+from copytrading.leaderboard_scraper import PolymarketLeaderboardScraper
 from copytrading.models import Wallet
-from copytrading.poly_client import PolyClient
 from copytrading.sheets_client import SheetsClient
 from copytrading.store import Store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-TOP_N = 20
 
-
-def discover_leaderboard() -> list[Wallet]:
-    """Fetch markets, aggregate wallet PnL, return top N wallets.
-
-    Since Polymarket's public API doesn't have a direct 'top traders' endpoint,
-    we fetch active markets and extract unique wallet addresses from positions.
-    In production, this would use a leaderboard API or scrape from the website.
-    """
-    poly = PolyClient()
-
-    # For now, fetch markets to verify API connectivity
-    markets = poly.get_markets()
-    logger.info("Fetched %d markets from Polymarket", len(markets))
-
-    # Placeholder: In a real implementation, we'd aggregate wallet PnL
-    # from multiple sources. For paper trading demo, we return empty
-    # and rely on manually-added wallets via the store.
-    return []
-
-
-def run() -> None:
-    """Main entry point for the leaderboard discovery cronjob."""
+def main() -> None:
+    """Scrape Polymarket leaderboard and update database + Google Sheets."""
     logger.info("Starting leaderboard discovery")
 
+    # Load settings
     settings = Settings.from_env()
-    poly = PolyClient()
-    sheets = SheetsClient.from_settings(settings)
 
-    # Verify API connectivity
-    markets = poly.get_markets()
-    logger.info("Polymarket API OK — %d active markets", len(markets))
+    # Scrape leaderboard
+    scraper = PolymarketLeaderboardScraper()
+    entries = scraper.fetch_weekly_top(20)
 
-    # Discover top wallets
-    wallets = discover_leaderboard()
+    if not entries:
+        logger.warning("No leaderboard entries found")
+        return
 
-    # Update store
+    logger.info(f"Found {len(entries)} leaderboard entries")
+
+    # Convert to Wallet objects and store in database
+    now = datetime.now(UTC)
+    wallets: list[Wallet] = []
+
     with Store() as store:
-        for w in wallets:
-            store.upsert_wallet(w)
+        for entry in entries:
+            wallet = Wallet(
+                address=entry.address,
+                rank=entry.rank,
+                total_pnl=Decimal(str(entry.pnl)),
+                discovered_at=now,
+            )
+            wallets.append(wallet)
+            store.upsert_wallet(wallet)
+            logger.info(
+                f"Stored wallet #{entry.rank}: {entry.username} "
+                f"(PnL: ${entry.pnl:,.2f}, Volume: ${entry.volume:,.2f})"
+            )
 
-        # Also get any previously tracked wallets
-        all_wallets = store.get_all_wallets()
+    # Update Google Sheets
+    try:
+        sheets_client = SheetsClient.from_settings(settings)
+        sheets_client.update_leaderboard(wallets)
+        logger.info(f"Updated Google Sheets with {len(wallets)} wallets")
+    except Exception as e:
+        logger.error(f"Failed to update Google Sheets: {e}")
 
-    # Update Google Sheets leaderboard
-    if all_wallets:
-        sheets.update_leaderboard(all_wallets)
-        logger.info("Updated leaderboard with %d wallets", len(all_wallets))
-    else:
-        logger.info("No wallets to update in leaderboard")
-
-    logger.info("Leaderboard discovery complete")
+    logger.info("Leaderboard discovery completed")
 
 
 if __name__ == "__main__":
-    run()
+    main()
