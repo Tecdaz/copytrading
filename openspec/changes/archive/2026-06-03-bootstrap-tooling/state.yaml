@@ -1,0 +1,19 @@
+status: archived
+change: bootstrap-tooling
+project: copytrading
+archived_on: 2026-06-03
+archive_path: openspec/changes/archive/2026-06-03-bootstrap-tooling/
+commit: de53d85
+last_phase: archive
+artifact_store: hybrid
+phases_completed:
+  - propose
+  - spec
+  - design
+  - tasks
+  - apply
+  - verify
+  - archive
+prs_landed: 3
+delivery_strategy: force-chained
+verify_verdict_post_fix: PASS
