@@ -50,6 +50,7 @@ def main() -> None:
                 rank=entry.rank,
                 total_pnl=Decimal(str(entry.pnl)),
                 discovered_at=now,
+                profile_url=entry.profile_url,
             )
             wallets.append(wallet)
             store.upsert_wallet(wallet)

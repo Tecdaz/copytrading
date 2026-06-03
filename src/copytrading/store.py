@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS wallets (
     rank INTEGER NOT NULL,
     total_pnl TEXT NOT NULL,
     discovered_at TEXT NOT NULL,
-    last_checked_at TEXT
+    last_checked_at TEXT,
+    profile_url TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS markets (
@@ -106,25 +107,27 @@ class Store:
 
     def upsert_wallet(self, wallet: Wallet) -> None:
         self.conn.execute(
-            """INSERT INTO wallets (address, rank, total_pnl, discovered_at, last_checked_at)
-               VALUES (?, ?, ?, ?, ?)
+            """INSERT INTO wallets (address, rank, total_pnl, discovered_at, last_checked_at, profile_url)
+               VALUES (?, ?, ?, ?, ?, ?)
                ON CONFLICT(address) DO UPDATE SET
                    rank=excluded.rank,
                    total_pnl=excluded.total_pnl,
-                   last_checked_at=excluded.last_checked_at""",
+                   last_checked_at=excluded.last_checked_at,
+                   profile_url=excluded.profile_url""",
             (
                 wallet.address,
                 wallet.rank,
                 str(wallet.total_pnl),
                 wallet.discovered_at.isoformat(),
                 wallet.last_checked_at.isoformat() if wallet.last_checked_at else None,
+                wallet.profile_url,
             ),
         )
         self.conn.commit()
 
     def get_all_wallets(self) -> list[Wallet]:
         rows = self.conn.execute(
-            "SELECT address, rank, total_pnl, discovered_at, last_checked_at "
+            "SELECT address, rank, total_pnl, discovered_at, last_checked_at, profile_url "
             "FROM wallets ORDER BY rank"
         ).fetchall()
         return [
@@ -134,6 +137,7 @@ class Store:
                 total_pnl=Decimal(r[2]),
                 discovered_at=datetime.fromisoformat(r[3]),
                 last_checked_at=datetime.fromisoformat(r[4]) if r[4] else None,
+                profile_url=r[5] if r[5] else "",
             )
             for r in rows
         ]

@@ -37,7 +37,7 @@ class TestSheetsClientUpdateLeaderboard:
         range_name, values = fake_service.writes[0]
         assert range_name == "leaderboard!A1"
         assert len(values) == 3  # header + 2 wallets
-        assert values[0] == ["Rank", "Address", "Total PnL", "Last Checked"]
+        assert values[0] == ["Rank", "Address", "Total PnL", "Last Checked", "Profile Link"]
         assert values[1][0] == "1"  # rank (as string)
         assert values[1][1] == "0xabc"  # address
 

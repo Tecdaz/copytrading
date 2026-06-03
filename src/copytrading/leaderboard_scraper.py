@@ -17,6 +17,7 @@ class LeaderboardEntry:
     username: str
     pnl: float
     volume: float
+    profile_url: str = ""
 
 
 class PolymarketLeaderboardScraper:
@@ -110,6 +111,7 @@ class PolymarketLeaderboardScraper:
                     username=username,
                     pnl=pnl,
                     volume=volume,
+                    profile_url=f"https://polymarket.com/profile/{address}",
                 )
             )
 

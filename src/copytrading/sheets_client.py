@@ -67,7 +67,7 @@ class SheetsClient:
 
     def update_leaderboard(self, wallets: list[Wallet]) -> None:
         """Write wallet data to the 'leaderboard' sheet."""
-        values: list[list[str]] = [["Rank", "Address", "Total PnL", "Last Checked"]]
+        values: list[list[str]] = [["Rank", "Address", "Total PnL", "Last Checked", "Profile Link"]]
         for w in wallets:
             values.append(
                 [
@@ -75,6 +75,7 @@ class SheetsClient:
                     w.address,
                     str(w.total_pnl),
                     w.last_checked_at.isoformat() if w.last_checked_at else "",
+                    w.profile_url,
                 ]
             )
 

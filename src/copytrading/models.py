@@ -16,6 +16,7 @@ class Wallet:
     total_pnl: Decimal
     discovered_at: datetime
     last_checked_at: datetime | None = None
+    profile_url: str = ""
 
 
 @dataclass(frozen=True)
