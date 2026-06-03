@@ -32,11 +32,13 @@ class PolyClient:
             with httpx.Client(timeout=self._timeout) as client:
                 response = client.get(f"{self._base_url}/markets")
                 response.raise_for_status()
-                data = response.json()
+                result = response.json()
+                # API returns {"data": [...], "next_cursor": ..., "limit": ..., "count": ...}
+                markets_data = result.get("data", []) if isinstance(result, dict) else result
         except httpx.HTTPError as e:
             raise PolyClientError(f"Failed to fetch markets: {e}") from e
 
-        return [self._parse_market(m) for m in data]
+        return [self._parse_market(m) for m in markets_data]
 
     def get_market(self, condition_id: str) -> Market:
         """Fetch a single market by condition ID."""
@@ -91,22 +93,21 @@ class PolyClient:
 
     def _parse_market(self, data: dict[str, object]) -> Market:
         tokens_raw = data.get("tokens", [])
-        token_yes: str | None = None
-        token_no: str | None = None
-        if isinstance(tokens_raw, list):
-            for t in tokens_raw:
-                if isinstance(t, dict):
-                    outcome = str(t.get("outcome", "")).upper()
-                    if outcome == "YES":
-                        token_yes = t.get("token_id")
-                    elif outcome == "NO":
-                        token_no = t.get("token_id")
+        token_first: str | None = None
+        token_second: str | None = None
+
+        if isinstance(tokens_raw, list) and len(tokens_raw) >= 2:
+            # Polymarket uses outcome names (not YES/NO), so we take first two tokens
+            if isinstance(tokens_raw[0], dict):
+                token_first = tokens_raw[0].get("token_id")
+            if isinstance(tokens_raw[1], dict):
+                token_second = tokens_raw[1].get("token_id")
 
         return Market(
             condition_id=str(data.get("condition_id", "")),
             question=str(data.get("question", "")),
-            token_id_yes=token_yes,
-            token_id_no=token_no,
+            token_id_yes=token_first,
+            token_id_no=token_second,
             active=bool(data.get("active", True)),
             fetched_at=datetime.now(UTC),
         )
