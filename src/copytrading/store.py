@@ -10,6 +10,7 @@ from typing import Self
 
 from copytrading.models import (
     AccountSnapshot,
+    Market,
     PaperTrade,
     Wallet,
 )
@@ -36,7 +37,7 @@ CREATE TABLE IF NOT EXISTS positions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     wallet_address TEXT NOT NULL REFERENCES wallets(address),
     market_condition_id TEXT NOT NULL REFERENCES markets(condition_id),
-    side TEXT NOT NULL CHECK(side IN ('yes', 'no')),
+    side TEXT NOT NULL,
     size TEXT NOT NULL,
     avg_price TEXT NOT NULL,
     fetched_at TEXT NOT NULL,
@@ -47,7 +48,7 @@ CREATE TABLE IF NOT EXISTS paper_trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     copied_from_wallet TEXT NOT NULL REFERENCES wallets(address),
     market_condition_id TEXT NOT NULL REFERENCES markets(condition_id),
-    side TEXT NOT NULL CHECK(side IN ('yes', 'no')),
+    side TEXT NOT NULL,
     size TEXT NOT NULL,
     entry_price TEXT NOT NULL,
     exit_price TEXT,
@@ -136,6 +137,46 @@ class Store:
             )
             for r in rows
         ]
+
+    # -- Market repository --
+
+    def upsert_market(self, market: Market) -> None:
+        self.conn.execute(
+            """INSERT INTO markets (condition_id, question, token_id_yes, token_id_no, active, fetched_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(condition_id) DO UPDATE SET
+                   question=excluded.question,
+                   token_id_yes=excluded.token_id_yes,
+                   token_id_no=excluded.token_id_no,
+                   active=excluded.active,
+                   fetched_at=excluded.fetched_at""",
+            (
+                market.condition_id,
+                market.question,
+                market.token_id_yes,
+                market.token_id_no,
+                1 if market.active else 0,
+                market.fetched_at.isoformat() if market.fetched_at else _now_iso(),
+            ),
+        )
+        self.conn.commit()
+
+    def get_market(self, condition_id: str) -> Market | None:
+        row = self.conn.execute(
+            """SELECT condition_id, question, token_id_yes, token_id_no, active, fetched_at
+               FROM markets WHERE condition_id=?""",
+            (condition_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return Market(
+            condition_id=row[0],
+            question=row[1],
+            token_id_yes=row[2],
+            token_id_no=row[3],
+            active=bool(row[4]),
+            fetched_at=datetime.fromisoformat(row[5]),
+        )
 
     # -- Paper trade repository --
 

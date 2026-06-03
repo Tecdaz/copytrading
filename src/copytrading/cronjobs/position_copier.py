@@ -68,6 +68,20 @@ def run() -> None:
 
                 if key not in open_by_key:
                     # New position — open a paper trade
+                    
+                    # Ensure market exists in database
+                    if not store.get_market(pos.market_condition_id):
+                        try:
+                            market = poly.get_market(pos.market_condition_id)
+                            store.upsert_market(market)
+                        except PolyClientError as e:
+                            logger.warning(
+                                "Failed to fetch market %s: %s",
+                                pos.market_condition_id[:8],
+                                e,
+                            )
+                            continue
+                    
                     size = calculate_position_size(equity)
                     if not validate_trade(size, equity):
                         logger.warning(

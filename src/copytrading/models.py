@@ -36,9 +36,15 @@ class Position:
 
     wallet_address: str
     market_condition_id: str
-    side: str  # "yes" or "no"
+    side: str  # "yes" or "no" or outcome name
     size: Decimal
     avg_price: Decimal
+    outcome_index: int = 0  # 0 or 1
+    current_price: Decimal = Decimal("0")
+    initial_value: Decimal = Decimal("0")
+    current_value: Decimal = Decimal("0")
+    cash_pnl: Decimal = Decimal("0")
+    title: str = ""
     fetched_at: datetime | None = None
 
 

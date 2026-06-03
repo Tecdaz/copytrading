@@ -53,11 +53,11 @@ class PolyClient:
         return self._parse_market(data)
 
     def get_positions(self, wallet_address: str) -> list[Position]:
-        """Fetch open positions for a wallet address."""
+        """Fetch open positions for a wallet address from data-api."""
         try:
             with httpx.Client(timeout=self._timeout) as client:
                 response = client.get(
-                    f"{self._base_url}/positions",
+                    "https://data-api.polymarket.com/positions",
                     params={"user": wallet_address},
                 )
                 response.raise_for_status()
@@ -68,10 +68,16 @@ class PolyClient:
         return [
             Position(
                 wallet_address=wallet_address,
-                market_condition_id=p.get("condition_id", ""),
-                side=p.get("side", "yes"),
+                market_condition_id=p.get("conditionId", ""),
+                side=p.get("outcome", ""),
+                outcome_index=p.get("outcomeIndex", 0),
                 size=Decimal(str(p.get("size", 0))),
-                avg_price=Decimal(str(p.get("avg_price", 0))),
+                avg_price=Decimal(str(p.get("avgPrice", 0))),
+                current_price=Decimal(str(p.get("curPrice", 0))),
+                initial_value=Decimal(str(p.get("initialValue", 0))),
+                current_value=Decimal(str(p.get("currentValue", 0))),
+                cash_pnl=Decimal(str(p.get("cashPnl", 0))),
+                title=p.get("title", ""),
                 fetched_at=datetime.now(UTC),
             )
             for p in data

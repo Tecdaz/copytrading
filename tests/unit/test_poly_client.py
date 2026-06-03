@@ -80,12 +80,18 @@ class TestPolyClientGetPositions:
     def test_parse_positions(self) -> None:
         fake = FakeHTTPClient(
             responses={
-                "https://clob.polymarket.com/positions": [
+                "https://data-api.polymarket.com/positions": [
                     {
-                        "condition_id": "cond1",
-                        "side": "yes",
+                        "conditionId": "cond1",
+                        "outcome": "Alexander Zverev",
+                        "outcomeIndex": 1,
                         "size": 100,
-                        "avg_price": 0.55,
+                        "avgPrice": 0.55,
+                        "curPrice": 0.60,
+                        "initialValue": 55,
+                        "currentValue": 60,
+                        "cashPnl": 5,
+                        "title": "Test Market",
                     }
                 ]
             }
@@ -97,9 +103,15 @@ class TestPolyClientGetPositions:
 
         assert len(positions) == 1
         assert positions[0].wallet_address == "0xabc"
-        assert positions[0].side == "yes"
+        assert positions[0].side == "Alexander Zverev"
+        assert positions[0].outcome_index == 1
         assert positions[0].size == Decimal("100")
         assert positions[0].avg_price == Decimal("0.55")
+        assert positions[0].current_price == Decimal("0.60")
+        assert positions[0].initial_value == Decimal("55")
+        assert positions[0].current_value == Decimal("60")
+        assert positions[0].cash_pnl == Decimal("5")
+        assert positions[0].title == "Test Market"
 
 
 class TestPolyClientGetOrderbook:
