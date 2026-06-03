@@ -10,7 +10,8 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "google-api-python-client>=2.197.0",
     "google-auth>=2.53.0",
-    "py-clob-client>=0.34.6",
+    "google-auth-oauthlib>=1.2.0",
+    "httpx>=0.28.0",
     "python-dotenv>=1.2.2",
 ]
 
@@ -45,7 +46,7 @@ module = ["tests.*"]
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["py_clob_client.*", "googleapiclient.*", "google.oauth2.*"]
+module = ["googleapiclient.*", "google.oauth2.*", "google_auth_oauthlib.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
