@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import httplib2
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -15,7 +18,30 @@ from googleapiclient.errors import HttpError
 from copytrading.config import Settings
 from copytrading.models import AccountSnapshot, PaperTrade, Wallet
 
+logger = logging.getLogger(__name__)
+
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+
+# HTTP statuses worth retrying (transient server errors + rate limits)
+RETRYABLE_HTTP_STATUSES = {408, 429, 500, 502, 503, 504}
+
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_INITIAL_BACKOFF_SECONDS = 1.0
+DEFAULT_BACKOFF_MULTIPLIER = 2.0
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Return True if the exception represents a transient failure worth retrying."""
+    if isinstance(exc, (ConnectionError, OSError, TimeoutError)):
+        return True
+    if isinstance(exc, httplib2.error.ServerNotFoundError):
+        return True
+    if isinstance(exc, HttpError):
+        try:
+            return int(exc.resp.status) in RETRYABLE_HTTP_STATUSES
+        except (AttributeError, TypeError, ValueError):
+            return False
+    return False
 
 
 class SheetsClientError(Exception):
@@ -23,11 +49,27 @@ class SheetsClientError(Exception):
 
 
 class SheetsClient:
-    """Client for writing data to Google Sheets using OAuth2."""
+    """Client for writing data to Google Sheets using OAuth2.
 
-    def __init__(self, service: Any, sheet_id: str) -> None:
+    All API calls retry on transient errors (DNS, 5xx, rate limit) with
+    exponential backoff. Non-transient errors (4xx) fail fast.
+    """
+
+    def __init__(
+        self,
+        service: Any,
+        sheet_id: str,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        initial_backoff: float = DEFAULT_INITIAL_BACKOFF_SECONDS,
+        backoff_multiplier: float = DEFAULT_BACKOFF_MULTIPLIER,
+        sleep: Any = time.sleep,
+    ) -> None:
         self._service = service
         self._sheet_id = sheet_id
+        self._max_retries = max_retries
+        self._initial_backoff = initial_backoff
+        self._backoff_multiplier = backoff_multiplier
+        self._sleep = sleep  # injectable for tests
 
     @classmethod
     def from_settings(cls, settings: Settings) -> SheetsClient:
@@ -117,11 +159,11 @@ class SheetsClient:
 
     def ensure_history_header(self) -> None:
         """Write the header row to the 'history' sheet if A1 is empty."""
-        result = (
+        result = self._execute_with_retry(
             self._service.spreadsheets()
             .values()
-            .get(spreadsheetId=self._sheet_id, range="history!A1:A1")
-            .execute()
+            .get(spreadsheetId=self._sheet_id, range="history!A1:A1"),
+            operation="ensure_history_header.get",
         )
         existing = result.get("values", [])
         if existing and existing[0]:
@@ -164,24 +206,60 @@ class SheetsClient:
 
     def _write_range(self, range_name: str, values: list[list[str]]) -> None:
         """Write values to a specific range."""
-        try:
+        self._execute_with_retry(
             self._service.spreadsheets().values().update(
                 spreadsheetId=self._sheet_id,
                 range=range_name,
                 valueInputOption="RAW",
                 body={"values": values},
-            ).execute()
-        except HttpError as e:
-            raise SheetsClientError(f"Failed to write to {range_name}: {e}") from e
+            ),
+            operation=f"write {range_name}",
+        )
 
     def _append_range(self, sheet_name: str, values: list[list[str]]) -> None:
         """Append values to the end of a sheet."""
-        try:
+        self._execute_with_retry(
             self._service.spreadsheets().values().append(
                 spreadsheetId=self._sheet_id,
                 range=f"{sheet_name}!A1",
                 valueInputOption="RAW",
                 body={"values": values},
-            ).execute()
-        except HttpError as e:
-            raise SheetsClientError(f"Failed to append to {sheet_name}: {e}") from e
+            ),
+            operation=f"append {sheet_name}",
+        )
+
+    def _execute_with_retry(self, request: Any, operation: str) -> dict[str, Any]:
+        """Execute a Google Sheets API request with exponential backoff on transient errors.
+
+        Retries up to max_retries times on connection errors, DNS failures,
+        and HTTP 5xx / 429. Non-retryable errors (e.g. 400) fail fast.
+        """
+        backoff = self._initial_backoff
+        attempts = self._max_retries + 1
+        last_error: BaseException | None = None
+
+        for attempt in range(1, attempts + 1):
+            try:
+                result: dict[str, Any] = request.execute()
+                return result
+            except Exception as e:
+                last_error = e
+                if not _is_retryable(e) or attempt == attempts:
+                    break
+                logger.warning(
+                    "Google Sheets %s failed (attempt %d/%d): %s. Retrying in %.1fs...",
+                    operation,
+                    attempt,
+                    attempts,
+                    e,
+                    backoff,
+                )
+                self._sleep(backoff)
+                backoff *= self._backoff_multiplier
+
+        # Exhausted retries or non-retryable error
+        if last_error is not None and _is_retryable(last_error):
+            error_msg = f"Google Sheets {operation} failed after {attempts} attempt(s): {last_error}"
+        else:
+            error_msg = f"Google Sheets {operation} failed: {last_error}"
+        raise SheetsClientError(error_msg) from last_error
