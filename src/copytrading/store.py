@@ -312,6 +312,34 @@ class Store:
         ).fetchone()
         return Decimal(str(row[0]))
 
+    def get_all_paper_trades(self, limit: int = 500) -> list[PaperTrade]:
+        """Return the most recent `limit` paper trades ordered DESC by opened_at.
+
+        `limit` is enforced at the SQL layer (LIMIT clause) — not post-fetch.
+        """
+        rows = self.conn.execute(
+            """SELECT id, copied_from_wallet, market_condition_id, side, size,
+                      entry_price, exit_price, status, pnl, opened_at, closed_at
+               FROM paper_trades ORDER BY opened_at DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [
+            PaperTrade(
+                id=r[0],
+                copied_from_wallet=r[1],
+                market_condition_id=r[2],
+                side=r[3],
+                size=Decimal(r[4]),
+                entry_price=Decimal(r[5]),
+                exit_price=Decimal(r[6]) if r[6] else None,
+                status=r[7],
+                pnl=Decimal(r[8]),
+                opened_at=datetime.fromisoformat(r[9]),
+                closed_at=datetime.fromisoformat(r[10]) if r[10] else None,
+            )
+            for r in rows
+        ]
+
     # -- Account snapshot repository --
 
     def insert_account_snapshot(self, snapshot: AccountSnapshot) -> int:
@@ -342,3 +370,20 @@ class Store:
             total_pnl=Decimal(row[3]),
             snapshot_at=datetime.fromisoformat(row[4]),
         )
+
+    def get_all_snapshots(self) -> list[AccountSnapshot]:
+        """Return all snapshots ordered ASC by snapshot_at. Empty list when table empty."""
+        rows = self.conn.execute(
+            """SELECT id, equity, open_trades, total_pnl, snapshot_at
+               FROM account_snapshots ORDER BY snapshot_at ASC"""
+        ).fetchall()
+        return [
+            AccountSnapshot(
+                id=row[0],
+                equity=Decimal(row[1]),
+                open_trades=row[2],
+                total_pnl=Decimal(row[3]),
+                snapshot_at=datetime.fromisoformat(row[4]),
+            )
+            for row in rows
+        ]
