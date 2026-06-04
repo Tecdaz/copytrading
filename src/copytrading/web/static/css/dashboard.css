@@ -1,11 +1,22 @@
-/* copytrading dashboard — minimal Slice 2 baseline.
-   T2.9 finalizes this file with .theme-dark + backdrop-filter polish. */
+/* copytrading dashboard — neon dark theme (T2.9 finalization).
+   Spec colors and effects:
+   - :root custom properties: --neon-cyan #0ff, --neon-violet #8b5cf6
+   - .theme-dark body class for the dark palette
+   - .number monospace (JetBrains Mono / Fira Code)
+   - .panel backdrop-filter: blur() for glassmorphism
+*/
 
 :root {
   --neon-cyan: #0ff;
   --neon-violet: #8b5cf6;
   --bg-base: #0a0a0f;
   --bg-panel: rgba(20, 20, 30, 0.6);
+  --text-muted: #8a8a99;
+  --border-soft: rgba(139, 92, 246, 0.2);
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
@@ -13,9 +24,105 @@ body {
   background: var(--bg-base);
   color: #e0e0e8;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100vh;
+}
+
+body.theme-dark {
+  background: var(--bg-base);
+  color: #e0e0e8;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg-panel);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--neon-cyan);
+}
+
+.topbar .muted {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: minmax(200px, auto);
+  gap: 1rem;
+  padding: 1rem 2rem;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 1rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow-x: auto;
+}
+
+.panel-wide {
+  grid-column: span 2;
+}
+
+.panel h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--neon-violet);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+table.data th,
+table.data td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+table.data th {
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+table.data tr:hover {
+  background: rgba(139, 92, 246, 0.05);
 }
 
 .number {
   font-family: "JetBrains Mono", "Fira Code", monospace;
   text-align: right;
+  transition: color 200ms, background 200ms;
+}
+
+.empty-state {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
 }

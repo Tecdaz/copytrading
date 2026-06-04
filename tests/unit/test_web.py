@@ -248,9 +248,7 @@ class TestWalletsPanel:
 
 
 class TestServingAndBind:
-    def test_vendor_chart_umd_is_served_from_static(
-        self, app_with_db: TestClient
-    ) -> None:
+    def test_vendor_chart_umd_is_served_from_static(self, app_with_db: TestClient) -> None:
         # REQ-WEB-9: the vendored Chart.js file must be served by the app
         # (not pulled from a CDN at runtime). The asset is bytes; we just
         # verify the route returns 200 with text/javascript and a non-empty
@@ -285,9 +283,7 @@ class TestServingAndBind:
         ):
             assert forbidden not in body, f"index references CDN host: {forbidden}"
 
-    def test_post_to_index_is_rejected_with_405(
-        self, app_with_db: TestClient
-    ) -> None:
+    def test_post_to_index_is_rejected_with_405(self, app_with_db: TestClient) -> None:
         # REQ-WEB-14: the dashboard exposes only GET handlers; mutating
         # methods on any path return 405 Method Not Allowed.
         for path in ("/", "/api/panel/equity-curve", "/api/panel/wallets"):
@@ -297,9 +293,7 @@ class TestServingAndBind:
                 f"POST {path} should be 405, got {response.status_code}"
             )
 
-    def test_css_includes_neon_and_monospace_markers(
-        self, app_with_db: TestClient
-    ) -> None:
+    def test_css_includes_neon_and_monospace_markers(self, app_with_db: TestClient) -> None:
         # REQ-WEB-12: the stylesheet must carry the visual markers
         # (monospace font-family + a cyan or violet hex color). These are
         # the semantic markers a reviewer checks without opening devtools.
@@ -310,14 +304,14 @@ class TestServingAndBind:
         body = response.text
         # Monospace font-family is required for the .number class.
         assert "font-family" in body
-        assert any(
-            token in body for token in ("JetBrains Mono", "Fira Code", "monospace")
-        ), "CSS missing monospace font-family token"
+        assert any(token in body for token in ("JetBrains Mono", "Fira Code", "monospace")), (
+            "CSS missing monospace font-family token"
+        )
         # A cyan or violet hex color must be present (any of the spec's
         # accepted values).
-        assert any(
-            token in body for token in ("#0ff", "#0ea5e9", "#8b5cf6", "#a855f7")
-        ), "CSS missing cyan or violet hex color"
+        assert any(token in body for token in ("#0ff", "#0ea5e9", "#8b5cf6", "#a855f7")), (
+            "CSS missing cyan or violet hex color"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -348,9 +342,7 @@ class TestBindAddress:
         merged = {**call.kwargs}
         # First positional may be the app reference; the bind args must
         # still appear as kwargs.
-        assert merged.get("host") == "127.0.0.1", (
-            f"expected host='127.0.0.1', got call={call}"
-        )
+        assert merged.get("host") == "127.0.0.1", f"expected host='127.0.0.1', got call={call}"
         assert merged.get("port") == 8000
         # Defense-in-depth: bind must not be 0.0.0.0 anywhere.
         assert "0.0.0.0" not in str(call)
