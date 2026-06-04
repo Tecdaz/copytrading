@@ -276,6 +276,101 @@ class TestPaperTradeRepo:
             open_trades = store.get_open_paper_trades()
             assert len(open_trades) == 0
 
+    def test_get_all_paper_trades_caps_at_default_limit(self) -> None:
+        with Store(":memory:") as store:
+            self._seed_wallet(store)
+            for i in range(600):
+                store.insert_paper_trade(
+                    PaperTrade(
+                        copied_from_wallet="0xabc",
+                        market_condition_id="cond1",
+                        side="yes",
+                        size=Decimal("1"),
+                        entry_price=Decimal("0.50"),
+                        opened_at=datetime(2024, 1, 1, i // 100, tzinfo=UTC),
+                    )
+                )
+
+            trades = store.get_all_paper_trades()
+
+            assert len(trades) == 500
+
+    def test_get_all_paper_trades_orders_desc_by_opened_at(self) -> None:
+        with Store(":memory:") as store:
+            self._seed_wallet(store)
+            for day in (1, 2, 3):
+                store.insert_paper_trade(
+                    PaperTrade(
+                        copied_from_wallet="0xabc",
+                        market_condition_id="cond1",
+                        side="yes",
+                        size=Decimal("1"),
+                        entry_price=Decimal("0.50"),
+                        opened_at=datetime(2024, 1, day, tzinfo=UTC),
+                    )
+                )
+
+            trades = store.get_all_paper_trades(limit=500)
+
+            opened_dates = [t.opened_at for t in trades if t.opened_at is not None]
+            assert len(opened_dates) == 3
+            assert opened_dates == sorted(opened_dates, reverse=True)
+            assert opened_dates[0].day == 3
+            assert opened_dates[-1].day == 1
+
+    def test_get_all_paper_trades_honors_smaller_limit(self) -> None:
+        with Store(":memory:") as store:
+            self._seed_wallet(store)
+            for i in range(5):
+                store.insert_paper_trade(
+                    PaperTrade(
+                        copied_from_wallet="0xabc",
+                        market_condition_id="cond1",
+                        side="yes",
+                        size=Decimal("1"),
+                        entry_price=Decimal("0.50"),
+                        opened_at=datetime(2024, 1, 1, i, tzinfo=UTC),
+                    )
+                )
+
+            trades = store.get_all_paper_trades(limit=2)
+
+            assert len(trades) == 2
+            # The 2 most recent (highest hour) should come back
+            assert trades[0].opened_at is not None
+            assert trades[1].opened_at is not None
+            assert trades[0].opened_at.hour > trades[1].opened_at.hour
+
+    def test_get_all_paper_trades_empty_returns_empty_list(self) -> None:
+        with Store(":memory:") as store:
+            assert store.get_all_paper_trades(limit=500) == []
+
+    def test_get_all_paper_trades_limit_at_sql_level(self) -> None:
+        with Store(":memory:") as store:
+            self._seed_wallet(store)
+            for i in range(1000):
+                store.insert_paper_trade(
+                    PaperTrade(
+                        copied_from_wallet="0xabc",
+                        market_condition_id="cond1",
+                        side="yes",
+                        size=Decimal("1"),
+                        entry_price=Decimal("0.50"),
+                        opened_at=datetime(2024, 1, 1, i // 60, i % 60, tzinfo=UTC),
+                    )
+                )
+
+            captured: list[str] = []
+            store.conn.set_trace_callback(lambda sql: captured.append(sql))
+
+            trades = store.get_all_paper_trades(limit=10)
+
+            assert len(trades) == 10
+            # At least one executed statement against paper_trades must contain "LIMIT 10"
+            assert any("paper_trades" in sql and "LIMIT 10" in sql for sql in captured), (
+                f"Expected SQL with 'LIMIT 10' against paper_trades, got: {captured}"
+            )
+
 
 class TestAccountSnapshotRepo:
     def test_insert_and_get_latest(self) -> None:
@@ -317,3 +412,65 @@ class TestAccountSnapshotRepo:
     def test_get_latest_empty(self) -> None:
         with Store(":memory:") as store:
             assert store.get_latest_snapshot() is None
+
+    def test_get_all_snapshots_returns_ascending_order(self) -> None:
+        with Store(":memory:") as store:
+            # Insert in non-chronological order to prove the SQL does the sorting
+            store.insert_account_snapshot(
+                AccountSnapshot(
+                    equity=Decimal("300"),
+                    open_trades=2,
+                    total_pnl=Decimal("100"),
+                    snapshot_at=datetime(2024, 1, 3, tzinfo=UTC),
+                )
+            )
+            store.insert_account_snapshot(
+                AccountSnapshot(
+                    equity=Decimal("100"),
+                    open_trades=0,
+                    total_pnl=Decimal("0"),
+                    snapshot_at=datetime(2024, 1, 1, tzinfo=UTC),
+                )
+            )
+            store.insert_account_snapshot(
+                AccountSnapshot(
+                    equity=Decimal("200"),
+                    open_trades=1,
+                    total_pnl=Decimal("50"),
+                    snapshot_at=datetime(2024, 1, 2, tzinfo=UTC),
+                )
+            )
+
+            snapshots = store.get_all_snapshots()
+
+            assert len(snapshots) == 3
+            snapshot_times = [s.snapshot_at for s in snapshots if s.snapshot_at is not None]
+            assert len(snapshot_times) == 3
+            assert snapshot_times[0] < snapshot_times[1] < snapshot_times[2]
+            assert snapshots[0].equity == Decimal("100")
+            assert snapshots[1].equity == Decimal("200")
+            assert snapshots[2].equity == Decimal("300")
+
+    def test_get_all_snapshots_empty_returns_empty_list(self) -> None:
+        with Store(":memory:") as store:
+            result = store.get_all_snapshots()
+
+            assert result == []
+
+    def test_get_all_snapshots_decimal_round_trip(self) -> None:
+        with Store(":memory:") as store:
+            store.insert_account_snapshot(
+                AccountSnapshot(
+                    equity=Decimal("200.50"),
+                    open_trades=3,
+                    total_pnl=Decimal("12.34"),
+                    snapshot_at=datetime(2024, 1, 1, tzinfo=UTC),
+                )
+            )
+
+            snapshots = store.get_all_snapshots()
+
+            assert len(snapshots) == 1
+            assert snapshots[0].equity == Decimal("200.50")
+            assert snapshots[0].total_pnl == Decimal("12.34")
+            assert snapshots[0].open_trades == 3
