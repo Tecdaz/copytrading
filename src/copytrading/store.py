@@ -56,7 +56,28 @@ CREATE TABLE IF NOT EXISTS paper_trades (
     status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'closed')),
     pnl TEXT NOT NULL DEFAULT '0',
     opened_at TEXT NOT NULL,
-    closed_at TEXT
+    closed_at TEXT,
+    market_url TEXT NOT NULL DEFAULT '',
+    asset_token_id TEXT NOT NULL DEFAULT '',
+    wallet_avg_price TEXT NOT NULL DEFAULT '0',
+    wallet_cur_price TEXT NOT NULL DEFAULT '0',
+    initial_value TEXT NOT NULL DEFAULT '0',
+    current_value TEXT NOT NULL DEFAULT '0',
+    total_bought TEXT NOT NULL DEFAULT '0',
+    realized_pnl TEXT NOT NULL DEFAULT '0',
+    percent_pnl TEXT NOT NULL DEFAULT '0',
+    percent_realized_pnl TEXT NOT NULL DEFAULT '0',
+    redeemable INTEGER NOT NULL DEFAULT 0,
+    mergeable INTEGER NOT NULL DEFAULT 0,
+    market_title TEXT NOT NULL DEFAULT '',
+    market_slug TEXT NOT NULL DEFAULT '',
+    market_icon TEXT NOT NULL DEFAULT '',
+    event_id TEXT NOT NULL DEFAULT '',
+    event_slug TEXT NOT NULL DEFAULT '',
+    end_date TEXT NOT NULL DEFAULT '',
+    negative_risk INTEGER NOT NULL DEFAULT 0,
+    opposite_outcome TEXT NOT NULL DEFAULT '',
+    opposite_asset TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS account_snapshots (
@@ -247,17 +268,50 @@ class Store:
         cursor = self.conn.execute(
             """INSERT INTO paper_trades
                (copied_from_wallet, market_condition_id, side, size,
-                entry_price, status, pnl, opened_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                entry_price, exit_price, status, pnl, opened_at, closed_at,
+                market_url, asset_token_id, wallet_avg_price, wallet_cur_price,
+                initial_value, current_value, total_bought, realized_pnl,
+                percent_pnl, percent_realized_pnl, redeemable, mergeable,
+                market_title, market_slug, market_icon, event_id, event_slug,
+                end_date, negative_risk, opposite_outcome, opposite_asset)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                       ?, ?, ?, ?,
+                       ?, ?, ?, ?,
+                       ?, ?, ?, ?,
+                       ?, ?, ?, ?, ?,
+                       ?, ?, ?, ?)""",
             (
                 trade.copied_from_wallet,
                 trade.market_condition_id,
                 trade.side,
                 str(trade.size),
                 str(trade.entry_price),
+                str(trade.exit_price) if trade.exit_price is not None else None,
                 trade.status,
                 str(trade.pnl),
                 trade.opened_at.isoformat() if trade.opened_at else _now_iso(),
+                trade.closed_at.isoformat() if trade.closed_at else None,
+                trade.market_url,
+                trade.asset_token_id,
+                str(trade.wallet_avg_price),
+                str(trade.wallet_cur_price),
+                str(trade.initial_value),
+                str(trade.current_value),
+                str(trade.total_bought),
+                str(trade.realized_pnl),
+                str(trade.percent_pnl),
+                str(trade.percent_realized_pnl),
+                1 if trade.redeemable else 0,
+                1 if trade.mergeable else 0,
+                trade.market_title,
+                trade.market_slug,
+                trade.market_icon,
+                trade.event_id,
+                trade.event_slug,
+                trade.end_date,
+                1 if trade.negative_risk else 0,
+                trade.opposite_outcome,
+                trade.opposite_asset,
             ),
         )
         self.conn.commit()
@@ -287,8 +341,13 @@ class Store:
     def get_open_paper_trades(self) -> list[PaperTrade]:
         rows = self.conn.execute(
             """SELECT id, copied_from_wallet, market_condition_id, side, size,
-                      entry_price, exit_price, status, pnl, opened_at, closed_at
-                FROM paper_trades WHERE status='open'"""
+                      entry_price, exit_price, status, pnl, opened_at, closed_at,
+                      market_url, asset_token_id, wallet_avg_price, wallet_cur_price,
+                      initial_value, current_value, total_bought, realized_pnl,
+                      percent_pnl, percent_realized_pnl, redeemable, mergeable,
+                      market_title, market_slug, market_icon, event_id, event_slug,
+                      end_date, negative_risk, opposite_outcome, opposite_asset
+               FROM paper_trades WHERE status='open'"""
         ).fetchall()
         return [
             PaperTrade(
@@ -303,6 +362,27 @@ class Store:
                 pnl=Decimal(r[8]),
                 opened_at=datetime.fromisoformat(r[9]),
                 closed_at=datetime.fromisoformat(r[10]) if r[10] else None,
+                market_url=r[11] if r[11] else "",
+                asset_token_id=r[12] if r[12] else "",
+                wallet_avg_price=Decimal(r[13]) if r[13] else Decimal("0"),
+                wallet_cur_price=Decimal(r[14]) if r[14] else Decimal("0"),
+                initial_value=Decimal(r[15]) if r[15] else Decimal("0"),
+                current_value=Decimal(r[16]) if r[16] else Decimal("0"),
+                total_bought=Decimal(r[17]) if r[17] else Decimal("0"),
+                realized_pnl=Decimal(r[18]) if r[18] else Decimal("0"),
+                percent_pnl=Decimal(r[19]) if r[19] else Decimal("0"),
+                percent_realized_pnl=Decimal(r[20]) if r[20] else Decimal("0"),
+                redeemable=bool(r[21]),
+                mergeable=bool(r[22]),
+                market_title=r[23] if r[23] else "",
+                market_slug=r[24] if r[24] else "",
+                market_icon=r[25] if r[25] else "",
+                event_id=r[26] if r[26] else "",
+                event_slug=r[27] if r[27] else "",
+                end_date=r[28] if r[28] else "",
+                negative_risk=bool(r[29]),
+                opposite_outcome=r[30] if r[30] else "",
+                opposite_asset=r[31] if r[31] else "",
             )
             for r in rows
         ]
@@ -321,7 +401,12 @@ class Store:
         """
         rows = self.conn.execute(
             """SELECT id, copied_from_wallet, market_condition_id, side, size,
-                      entry_price, exit_price, status, pnl, opened_at, closed_at
+                      entry_price, exit_price, status, pnl, opened_at, closed_at,
+                      market_url, asset_token_id, wallet_avg_price, wallet_cur_price,
+                      initial_value, current_value, total_bought, realized_pnl,
+                      percent_pnl, percent_realized_pnl, redeemable, mergeable,
+                      market_title, market_slug, market_icon, event_id, event_slug,
+                      end_date, negative_risk, opposite_outcome, opposite_asset
                FROM paper_trades ORDER BY opened_at DESC LIMIT ?""",
             (limit,),
         ).fetchall()
@@ -338,6 +423,27 @@ class Store:
                 pnl=Decimal(r[8]),
                 opened_at=datetime.fromisoformat(r[9]),
                 closed_at=datetime.fromisoformat(r[10]) if r[10] else None,
+                market_url=r[11] if r[11] else "",
+                asset_token_id=r[12] if r[12] else "",
+                wallet_avg_price=Decimal(r[13]) if r[13] else Decimal("0"),
+                wallet_cur_price=Decimal(r[14]) if r[14] else Decimal("0"),
+                initial_value=Decimal(r[15]) if r[15] else Decimal("0"),
+                current_value=Decimal(r[16]) if r[16] else Decimal("0"),
+                total_bought=Decimal(r[17]) if r[17] else Decimal("0"),
+                realized_pnl=Decimal(r[18]) if r[18] else Decimal("0"),
+                percent_pnl=Decimal(r[19]) if r[19] else Decimal("0"),
+                percent_realized_pnl=Decimal(r[20]) if r[20] else Decimal("0"),
+                redeemable=bool(r[21]),
+                mergeable=bool(r[22]),
+                market_title=r[23] if r[23] else "",
+                market_slug=r[24] if r[24] else "",
+                market_icon=r[25] if r[25] else "",
+                event_id=r[26] if r[26] else "",
+                event_slug=r[27] if r[27] else "",
+                end_date=r[28] if r[28] else "",
+                negative_risk=bool(r[29]),
+                opposite_outcome=r[30] if r[30] else "",
+                opposite_asset=r[31] if r[31] else "",
             )
             for r in rows
         ]
