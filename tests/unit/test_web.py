@@ -1,8 +1,9 @@
 """Tests for the read-only web dashboard (FastAPI + Jinja2 + HTMX).
 
-Covers REQ-WEB-1..5, REQ-WEB-11 (panels and empty-state behavior) in this
-file. REQ-WEB-9, 10, 12, 14 (vendor serving, polling markers, no-CDN,
-read-only mutating-method rejection) live further down in the same file.
+Covers REQ-WEB-1..5, REQ-WEB-11 (panels and empty-state behavior) in the
+``TestIndexPage`` / ``Test<Panel>Panel`` classes below. REQ-WEB-9, 10, 12,
+14 (vendor serving, polling markers, no-CDN, read-only mutating-method
+rejection, CSS markers) live in ``TestServingAndBind`` further down.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -237,3 +239,118 @@ class TestWalletsPanel:
 
         assert response.status_code == 200
         assert "No tracked wallets" in response.text
+
+
+# ---------------------------------------------------------------------------
+# REQ-WEB-7 / REQ-WEB-9 / REQ-WEB-10 / REQ-WEB-12 / REQ-WEB-14
+# Serving, polling, no-CDN, CSS markers, mutating-method rejection
+# ---------------------------------------------------------------------------
+
+
+class TestServingAndBind:
+    def test_vendor_chart_umd_is_served_from_static(
+        self, app_with_db: TestClient
+    ) -> None:
+        # REQ-WEB-9: the vendored Chart.js file must be served by the app
+        # (not pulled from a CDN at runtime). The asset is bytes; we just
+        # verify the route returns 200 with text/javascript and a non-empty
+        # body so a browser can execute it.
+        response = app_with_db.get("/static/vendor/chart.umd.min.js")
+
+        assert response.status_code == 200
+        assert "javascript" in response.headers["content-type"]
+        assert len(response.content) > 0
+
+    def test_index_contains_every_5s_trigger_at_least_7_times(
+        self, app_with_db: TestClient
+    ) -> None:
+        # REQ-WEB-7: each of the 7 panel placeholders polls every 5s.
+        # The literal ``every 5s`` string must appear at least 7 times.
+        response = app_with_db.get("/")
+
+        assert response.status_code == 200
+        assert response.text.count("every 5s") >= 7
+
+    def test_index_does_not_reference_cdn_hosts(self, app_with_db: TestClient) -> None:
+        # REQ-WEB-9: the dashboard MUST NOT issue a network request to a
+        # public CDN at runtime. The vendored HTMX + Chart.js assets are
+        # the only JS sources, both served from /static/vendor/.
+        response = app_with_db.get("/")
+        body = response.text
+
+        for forbidden in (
+            "cdn.jsdelivr.net",
+            "unpkg.com",
+            "cdnjs.cloudflare.com",
+        ):
+            assert forbidden not in body, f"index references CDN host: {forbidden}"
+
+    def test_post_to_index_is_rejected_with_405(
+        self, app_with_db: TestClient
+    ) -> None:
+        # REQ-WEB-14: the dashboard exposes only GET handlers; mutating
+        # methods on any path return 405 Method Not Allowed.
+        for path in ("/", "/api/panel/equity-curve", "/api/panel/wallets"):
+            response = app_with_db.post(path)
+
+            assert response.status_code == 405, (
+                f"POST {path} should be 405, got {response.status_code}"
+            )
+
+    def test_css_includes_neon_and_monospace_markers(
+        self, app_with_db: TestClient
+    ) -> None:
+        # REQ-WEB-12: the stylesheet must carry the visual markers
+        # (monospace font-family + a cyan or violet hex color). These are
+        # the semantic markers a reviewer checks without opening devtools.
+        response = app_with_db.get("/static/css/dashboard.css")
+
+        assert response.status_code == 200
+        assert "text/css" in response.headers["content-type"]
+        body = response.text
+        # Monospace font-family is required for the .number class.
+        assert "font-family" in body
+        assert any(
+            token in body for token in ("JetBrains Mono", "Fira Code", "monospace")
+        ), "CSS missing monospace font-family token"
+        # A cyan or violet hex color must be present (any of the spec's
+        # accepted values).
+        assert any(
+            token in body for token in ("#0ff", "#0ea5e9", "#8b5cf6", "#a855f7")
+        ), "CSS missing cyan or violet hex color"
+
+
+# ---------------------------------------------------------------------------
+# REQ-WEB-13: default bind address is loopback (127.0.0.1, not 0.0.0.0)
+# ---------------------------------------------------------------------------
+
+
+class TestBindAddress:
+    def test_main_module_passes_loopback_host(self) -> None:
+        # REQ-WEB-13: the entrypoint MUST bind to 127.0.0.1 (loopback) by
+        # default and never to 0.0.0.0. The contract lives in
+        # :mod:`copytrading.web.__main__`, which we invoke via runpy.
+        from copytrading.web import __main__ as web_main
+
+        with (
+            mock.patch.object(web_main.uvicorn, "run") as mock_run,
+            mock.patch.object(web_main, "__name__", "__main__"),
+        ):
+            # Direct call: runpy only re-runs the module when it sees
+            # __name__ == "__main__"; we already patched the attribute,
+            # so calling main() is equivalent.
+            web_main.main()
+
+        assert mock_run.call_count == 1
+        call = mock_run.call_args
+        # uvicorn.run may be called positionally or with kwargs; we accept
+        # both and look for host= in the merged args.
+        merged = {**call.kwargs}
+        # First positional may be the app reference; the bind args must
+        # still appear as kwargs.
+        assert merged.get("host") == "127.0.0.1", (
+            f"expected host='127.0.0.1', got call={call}"
+        )
+        assert merged.get("port") == 8000
+        # Defense-in-depth: bind must not be 0.0.0.0 anywhere.
+        assert "0.0.0.0" not in str(call)
