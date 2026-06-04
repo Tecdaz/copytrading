@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
-from copytrading.models import AccountSnapshot, PaperTrade, Wallet
+from copytrading.models import AccountSnapshot, Market, PaperTrade, Wallet
 from copytrading.store import Store
 
 
@@ -89,6 +89,135 @@ class TestWalletRepo:
 
             wallets = store.get_all_wallets()
             assert [w.rank for w in wallets] == [1, 2, 3]
+
+    def test_prune_wallets_not_in_removes_old(self) -> None:
+        with Store(":memory:") as store:
+            for addr in ["0xaaa", "0xbbb", "0xccc"]:
+                store.upsert_wallet(
+                    Wallet(
+                        address=addr,
+                        rank=1,
+                        total_pnl=Decimal("0"),
+                        discovered_at=datetime(2024, 1, 1, tzinfo=UTC),
+                    )
+                )
+
+            deleted = store.prune_wallets_not_in(["0xaaa", "0xbbb"])
+
+            assert deleted == 1
+            remaining = {w.address for w in store.get_all_wallets()}
+            assert remaining == {"0xaaa", "0xbbb"}
+
+    def test_prune_wallets_not_in_cascades_to_paper_trades(self) -> None:
+        with Store(":memory:") as store:
+            # Seed two wallets + a market
+            store.upsert_market(
+                Market(
+                    condition_id="cond1",
+                    question="?",
+                    fetched_at=datetime(2024, 1, 1, tzinfo=UTC),
+                )
+            )
+            for addr in ["0xkeep", "0xdrop"]:
+                store.upsert_wallet(
+                    Wallet(
+                        address=addr,
+                        rank=1,
+                        total_pnl=Decimal("0"),
+                        discovered_at=datetime(2024, 1, 1, tzinfo=UTC),
+                    )
+                )
+                # Use closed trades so the wallet can be pruned
+                store.insert_paper_trade(
+                    PaperTrade(
+                        copied_from_wallet=addr,
+                        market_condition_id="cond1",
+                        side="yes",
+                        size=Decimal("1.00"),
+                        entry_price=Decimal("0.50"),
+                        status="closed",
+                        opened_at=datetime(2024, 1, 1, tzinfo=UTC),
+                    )
+                )
+
+            store.prune_wallets_not_in(["0xkeep"])
+
+            # The dropped wallet AND its paper_trades should be gone
+            trades = store.conn.execute(
+                "SELECT copied_from_wallet FROM paper_trades"
+            ).fetchall()
+            assert [t[0] for t in trades] == ["0xkeep"]
+
+    def test_prune_with_empty_active_list_is_noop(self) -> None:
+        with Store(":memory:") as store:
+            store.upsert_wallet(
+                Wallet(
+                    address="0xaaa",
+                    rank=1,
+                    total_pnl=Decimal("0"),
+                    discovered_at=datetime(2024, 1, 1, tzinfo=UTC),
+                )
+            )
+
+            deleted = store.prune_wallets_not_in([])
+
+            assert deleted == 0
+            assert len(store.get_all_wallets()) == 1
+
+    def test_prune_keeps_wallets_with_open_trades(self) -> None:
+        with Store(":memory:") as store:
+            store.upsert_market(
+                Market(
+                    condition_id="cond1",
+                    question="?",
+                    fetched_at=datetime(2024, 1, 1, tzinfo=UTC),
+                )
+            )
+            # 0xkeep is in the new top 20
+            store.upsert_wallet(
+                Wallet(
+                    address="0xkeep",
+                    rank=1,
+                    total_pnl=Decimal("0"),
+                    discovered_at=datetime(2024, 1, 1, tzinfo=UTC),
+                )
+            )
+            # 0xdangling dropped from top 20 but has an OPEN trade
+            store.upsert_wallet(
+                Wallet(
+                    address="0xdangling",
+                    rank=2,
+                    total_pnl=Decimal("0"),
+                    discovered_at=datetime(2024, 1, 1, tzinfo=UTC),
+                )
+            )
+            store.insert_paper_trade(
+                PaperTrade(
+                    copied_from_wallet="0xdangling",
+                    market_condition_id="cond1",
+                    side="yes",
+                    size=Decimal("1.00"),
+                    entry_price=Decimal("0.50"),
+                    status="open",
+                    opened_at=datetime(2024, 1, 1, tzinfo=UTC),
+                )
+            )
+            # 0xabandoned dropped from top 20 with no open trades
+            store.upsert_wallet(
+                Wallet(
+                    address="0xabandoned",
+                    rank=3,
+                    total_pnl=Decimal("0"),
+                    discovered_at=datetime(2024, 1, 1, tzinfo=UTC),
+                )
+            )
+
+            deleted = store.prune_wallets_not_in(["0xkeep"])
+
+            # Only the abandoned one is removed
+            assert deleted == 1
+            remaining = {w.address for w in store.get_all_wallets()}
+            assert remaining == {"0xkeep", "0xdangling"}
 
 
 class TestPaperTradeRepo:

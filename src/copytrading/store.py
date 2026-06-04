@@ -142,6 +142,62 @@ class Store:
             for r in rows
         ]
 
+    def prune_wallets_not_in(self, active_addresses: list[str]) -> int:
+        """Delete wallets not in the active leaderboard that have no open trades.
+
+        Wallets dropped from the top N are kept if they still have open paper
+        trades — the position copier needs them to detect closures. Once all
+        their trades close, the next prune will remove them.
+
+        Closed paper_trades for pruned wallets are also deleted (history
+        stays in Google Sheets).
+
+        Args:
+            active_addresses: Addresses that should remain in the table.
+
+        Returns:
+            Number of wallets deleted.
+        """
+        if not active_addresses:
+            return 0
+
+        normalized = [a.lower() for a in active_addresses]
+        placeholders = ",".join("?" for _ in normalized)
+
+        # Find wallets to prune: not in active list AND no open trades
+        cursor = self.conn.execute(
+            f"""
+            SELECT address FROM wallets
+            WHERE address NOT IN ({placeholders})
+              AND address NOT IN (
+                  SELECT DISTINCT copied_from_wallet
+                  FROM paper_trades
+                  WHERE status = 'open'
+              )
+            """,
+            normalized,
+        )
+        to_remove = [row[0] for row in cursor.fetchall()]
+
+        if not to_remove:
+            return 0
+
+        rm_placeholders = ",".join("?" for _ in to_remove)
+
+        # Delete their (non-open) paper_trades
+        self.conn.execute(
+            f"DELETE FROM paper_trades WHERE copied_from_wallet IN ({rm_placeholders})",
+            to_remove,
+        )
+
+        # Delete the wallets themselves
+        cursor = self.conn.execute(
+            f"DELETE FROM wallets WHERE address IN ({rm_placeholders})",
+            to_remove,
+        )
+        self.conn.commit()
+        return cursor.rowcount
+
     # -- Market repository --
 
     def upsert_market(self, market: Market) -> None:

@@ -97,6 +97,12 @@ def main() -> None:
     wallets: list[Wallet] = []
 
     with Store() as store:
+        # Prune wallets that dropped off the top 20 (keeps DB in sync with leaderboard)
+        active_addresses = [e.address for e in entries]
+        pruned = store.prune_wallets_not_in(active_addresses)
+        if pruned > 0:
+            logger.info(f"Pruned {pruned} wallets no longer in top 20")
+
         for entry in entries:
             wallet = Wallet(
                 address=entry.address,
