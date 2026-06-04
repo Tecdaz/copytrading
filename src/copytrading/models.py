@@ -17,6 +17,11 @@ class Wallet:
     discovered_at: datetime
     last_checked_at: datetime | None = None
     profile_url: str = ""
+    username: str = ""
+    x_username: str = ""
+    volume: Decimal = Decimal("0")
+    verified_badge: bool = False
+    profile_image: str = ""
 
 
 @dataclass(frozen=True)
@@ -29,6 +34,12 @@ class Market:
     token_id_no: str | None = None
     active: bool = True
     fetched_at: datetime | None = None
+    icon: str = ""
+    slug: str = ""
+    event_id: str = ""
+    event_slug: str = ""
+    end_date: str = ""
+    negative_risk: bool = False
 
 
 @dataclass(frozen=True)
@@ -47,6 +58,21 @@ class Position:
     cash_pnl: Decimal = Decimal("0")
     title: str = ""
     fetched_at: datetime | None = None
+    asset: str = ""
+    total_bought: Decimal = Decimal("0")
+    realized_pnl: Decimal = Decimal("0")
+    percent_pnl: Decimal = Decimal("0")
+    percent_realized_pnl: Decimal = Decimal("0")
+    redeemable: bool = False
+    mergeable: bool = False
+    slug: str = ""
+    icon: str = ""
+    event_id: str = ""
+    event_slug: str = ""
+    opposite_outcome: str = ""
+    opposite_asset: str = ""
+    end_date: str = ""
+    negative_risk: bool = False
 
 
 @dataclass(frozen=True)
@@ -65,6 +91,26 @@ class PaperTrade:
     closed_at: datetime | None = None
     market_url: str = ""
     id: int | None = None
+    asset_token_id: str = ""
+    wallet_avg_price: Decimal = Decimal("0")
+    wallet_cur_price: Decimal = Decimal("0")
+    initial_value: Decimal = Decimal("0")
+    current_value: Decimal = Decimal("0")
+    total_bought: Decimal = Decimal("0")
+    realized_pnl: Decimal = Decimal("0")
+    percent_pnl: Decimal = Decimal("0")
+    percent_realized_pnl: Decimal = Decimal("0")
+    redeemable: bool = False
+    mergeable: bool = False
+    market_title: str = ""
+    market_slug: str = ""
+    market_icon: str = ""
+    event_id: str = ""
+    event_slug: str = ""
+    end_date: str = ""
+    negative_risk: bool = False
+    opposite_outcome: str = ""
+    opposite_asset: str = ""
 
 
 @dataclass(frozen=True)

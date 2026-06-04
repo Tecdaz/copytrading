@@ -27,6 +27,19 @@ class TestWallet:
         assert w.total_pnl == Decimal("150.50")
         assert w.last_checked_at is None
 
+    def test_new_fields_have_defaults(self) -> None:
+        w = Wallet(
+            address="0xabc",
+            rank=1,
+            total_pnl=Decimal("0"),
+            discovered_at=datetime.now(UTC),
+        )
+        assert w.username == ""
+        assert w.x_username == ""
+        assert w.volume == Decimal("0")
+        assert w.verified_badge is False
+        assert w.profile_image == ""
+
     def test_wallet_is_frozen(self) -> None:
         w = Wallet(
             address="0xabc",

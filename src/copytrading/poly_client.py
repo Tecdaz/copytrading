@@ -114,9 +114,51 @@ class PolyClient:
                 cash_pnl=Decimal(str(p.get("cashPnl", 0))),
                 title=p.get("title", ""),
                 fetched_at=datetime.now(UTC),
+                asset=p.get("asset", ""),
+                total_bought=Decimal(str(p.get("totalBought", 0))),
+                realized_pnl=Decimal(str(p.get("realizedPnl", 0))),
+                percent_pnl=Decimal(str(p.get("percentPnl", 0))),
+                percent_realized_pnl=Decimal(str(p.get("percentRealizedPnl", 0))),
+                redeemable=bool(p.get("redeemable", False)),
+                mergeable=bool(p.get("mergeable", False)),
+                slug=p.get("slug", ""),
+                icon=p.get("icon", ""),
+                event_id=p.get("eventId", ""),
+                event_slug=p.get("eventSlug", ""),
+                opposite_outcome=p.get("oppositeOutcome", ""),
+                opposite_asset=p.get("oppositeAsset", ""),
+                end_date=p.get("endDate", ""),
+                negative_risk=bool(p.get("negativeRisk", False)),
             )
             for p in data
         ]
+
+    def get_midpoint(self, token_id: str) -> Decimal:
+        """Fetch the current midpoint price for a token from the CLOB API.
+
+        Args:
+            token_id: The CLOB token ID (Yes or No side of a market).
+
+        Returns:
+            Mid price as Decimal (0.0 to 1.0 for binary markets).
+
+        Raises:
+            PolyClientError: If the request fails or the response is invalid.
+        """
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.get(
+                    f"{self._base_url}/midpoint",
+                    params={"token_id": token_id},
+                )
+                response.raise_for_status()
+                data: dict[str, object] = response.json()
+                mid_raw = data.get("mid", "0")
+                return Decimal(str(mid_raw))
+        except httpx.HTTPError as e:
+            raise PolyClientError(f"Failed to fetch midpoint for {token_id}: {e}") from e
+        except (KeyError, TypeError, ValueError) as e:
+            raise PolyClientError(f"Invalid midpoint response for {token_id}: {e}") from e
 
     def get_orderbook(self, token_id: str) -> dict[str, object]:
         """Fetch the orderbook for a specific token."""

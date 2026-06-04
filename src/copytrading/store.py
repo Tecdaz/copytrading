@@ -107,7 +107,9 @@ class Store:
 
     def upsert_wallet(self, wallet: Wallet) -> None:
         self.conn.execute(
-            """INSERT INTO wallets (address, rank, total_pnl, discovered_at, last_checked_at, profile_url)
+            """INSERT INTO wallets (
+                   address, rank, total_pnl, discovered_at, last_checked_at, profile_url
+               )
                VALUES (?, ?, ?, ?, ?, ?)
                ON CONFLICT(address) DO UPDATE SET
                    rank=excluded.rank,

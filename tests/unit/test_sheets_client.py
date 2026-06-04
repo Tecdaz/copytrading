@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import patch
 
 import httplib2
 import pytest
@@ -43,7 +43,18 @@ class TestSheetsClientUpdateLeaderboard:
         range_name, values = fake_service.writes[0]
         assert range_name == "leaderboard!A1"
         assert len(values) == 3  # header + 2 wallets
-        assert values[0] == ["Rank", "Address", "Total PnL", "Last Checked", "Profile Link"]
+        assert values[0] == [
+            "Rank",
+            "Address",
+            "Username",
+            "X Username",
+            "Verified",
+            "Total PnL",
+            "Volume",
+            "Profile Image",
+            "Last Checked",
+            "Profile Link",
+        ]
         assert values[1][0] == "1"  # rank (as string)
         assert values[1][1] == "0xabc"  # address
 
@@ -94,8 +105,8 @@ class TestSheetsClientAppendTrades:
         client.append_trades(trades)
 
         _, values = fake_service.appends[0]
-        # Row should have 11 columns (10 + market link)
-        assert len(values[0]) == 11
+        # Row should have 31 columns (all trade + position snapshot fields)
+        assert len(values[0]) == 31
         assert values[0][10] == "https://polymarket.com/market/0xmarket123"
 
     def test_empty_market_url_writes_empty_string(self) -> None:
@@ -151,6 +162,26 @@ class TestSheetsClientEnsureHistoryHeader:
                 "PnL",
                 "Closed At",
                 "Market Link",
+                "Wallet Avg Price",
+                "Wallet Cur Price",
+                "Initial Value",
+                "Current Value",
+                "Total Bought",
+                "Realized PnL",
+                "Percent PnL",
+                "Percent Realized PnL",
+                "Redeemable",
+                "Mergeable",
+                "Market Title",
+                "Market Slug",
+                "Market Icon",
+                "Event ID",
+                "Event Slug",
+                "End Date",
+                "Negative Risk",
+                "Opposite Outcome",
+                "Opposite Asset",
+                "Asset Token ID",
             ]
         ]
 
@@ -202,7 +233,7 @@ class TestSheetsClientUpdateAccount:
 class FakeFlakyService:
     """Fake Sheets service that raises errors N times before succeeding."""
 
-    def __init__(self, errors: list[Exception]) -> None:
+    def __init__(self, errors: Sequence[Exception]) -> None:
         self._errors = list(errors)
         self.call_count = 0
 
@@ -309,3 +340,108 @@ class TestSheetsClientRetry:
         from copytrading.sheets_client import DEFAULT_MAX_RETRIES
 
         assert DEFAULT_MAX_RETRIES == 3
+
+
+class TestSheetsClientUpdateLivePositions:
+    def test_writes_header_plus_rows(self) -> None:
+        fake_service = FakeSheetsService()
+        client = SheetsClient(fake_service, "sheet123")
+
+        client.update_live_positions(
+            [
+                [
+                    "1",
+                    "0xabc",
+                    "0xmkt",
+                    "yes",
+                    "1.00",
+                    "0.50",
+                    "0.60",
+                    "0.10",
+                    "2026-06-04T00:00:00",
+                ],
+                [
+                    "2",
+                    "0xdef",
+                    "0xmkt",
+                    "no",
+                    "1.00",
+                    "0.30",
+                    "0.20",
+                    "-0.10",
+                    "2026-06-04T00:00:00",
+                ],  # noqa: E501
+            ]
+        )
+
+        assert len(fake_service.writes) == 1
+        range_name, values = fake_service.writes[0]
+        assert range_name == "positions!A1"
+        # header + 2 data rows
+        assert len(values) == 3
+        assert values[0][0] == "Trade ID"
+        assert values[0][7] == "Current Price"
+        assert values[0][8] == "Unrealized PnL"
+        assert values[1][0] == "1"
+        assert values[2][0] == "2"
+
+    def test_empty_rows_clears_to_header_only(self) -> None:
+        fake_service = FakeSheetsService()
+        client = SheetsClient(fake_service, "sheet123")
+
+        client.update_live_positions([])
+
+        _, values = fake_service.writes[0]
+        # Just the header, no data rows
+        assert len(values) == 1
+        assert values[0][0] == "Trade ID"
+
+    def test_overwrites_existing_data(self) -> None:
+        """Same call twice should rewrite the same range, not append."""
+        fake_service = FakeSheetsService()
+        client = SheetsClient(fake_service, "sheet123")
+
+        client.update_live_positions([["1", "0xabc"]])
+        client.update_live_positions([["2", "0xdef"], ["3", "0xghi"]])
+
+        # Two writes, both to positions!A1
+        assert len(fake_service.writes) == 2
+        assert fake_service.writes[0][0] == "positions!A1"
+        assert fake_service.writes[1][0] == "positions!A1"
+        # Second write has 2 data rows + header
+        assert len(fake_service.writes[1][1]) == 3
+
+
+class TestSheetsClientEnsurePositionsHeader:
+    def test_writes_header_when_sheet_is_empty(self) -> None:
+        fake_service = FakeSheetsService()
+        client = SheetsClient(fake_service, "sheet123")
+
+        client.ensure_positions_header()
+
+        assert len(fake_service.writes) == 1
+        range_name, values = fake_service.writes[0]
+        assert range_name == "positions!A1"
+        assert values[0] == [
+            "Trade ID",
+            "Opened At",
+            "Wallet",
+            "Market",
+            "Side",
+            "Size",
+            "Entry Price",
+            "Current Price",
+            "Unrealized PnL",
+            "Updated At",
+            "Wallet Avg Price",
+            "Asset Token ID",
+        ]
+
+    def test_does_not_overwrite_existing_header(self) -> None:
+        fake_service = FakeSheetsService()
+        fake_service._storage["positions!A1"] = [["Old Header", "x", "x"]]
+        client = SheetsClient(fake_service, "sheet123")
+
+        client.ensure_positions_header()
+
+        assert len(fake_service.writes) == 0

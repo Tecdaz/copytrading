@@ -18,6 +18,9 @@ class LeaderboardEntry:
     volume: float
     rank: int = 0
     profile_url: str = ""
+    x_username: str = ""
+    verified_badge: bool = False
+    profile_image: str = ""
 
 
 class PolymarketLeaderboardScraper:
@@ -47,7 +50,7 @@ class PolymarketLeaderboardScraper:
         # $4,874,769
 
         # Extract all profile links with wallet addresses
-        profile_pattern = r'/profile/(0x[a-fA-F0-9]{40})'
+        profile_pattern = r"/profile/(0x[a-fA-F0-9]{40})"
         all_addresses = re.findall(profile_pattern, html)
 
         # Deduplicate addresses while preserving order
@@ -61,7 +64,7 @@ class PolymarketLeaderboardScraper:
 
         # Extract usernames - they appear as link text before the profile URL
         # Pattern: [username](/profile/0x...)
-        username_pattern = r'\[([^\]]+)\]\(/profile/0x[a-fA-F0-9]{40}\)'
+        username_pattern = r"\[([^\]]+)\]\(/profile/0x[a-fA-F0-9]{40}\)"
         all_usernames = re.findall(username_pattern, html)
 
         # Deduplicate usernames in same order as addresses
@@ -73,20 +76,20 @@ class PolymarketLeaderboardScraper:
                 unique_usernames.append(username)
 
         # Extract PnL values (format: +$1,064,165)
-        pnl_pattern = r'\+\$([0-9,]+)'
+        pnl_pattern = r"\+\$([0-9,]+)"
         pnl_values = re.findall(pnl_pattern, html)
 
         # Extract volume values (format: $4,874,769 without +)
         # We need to be careful to only get the volume values that follow PnL
         # Looking at the pattern: +$PnL followed by $Volume
-        volume_pattern = r'\+\$[0-9,]+\s*\n?\s*\$([0-9,]+)'
+        volume_pattern = r"\+\$[0-9,]+\s*\n?\s*\$([0-9,]+)"
         volume_values = re.findall(volume_pattern, html)
 
         # If volume pattern didn't work, try extracting all non-PnL dollar values
         if not volume_values:
-            all_dollars = re.findall(r'\$([0-9,]+)', html)
+            all_dollars = re.findall(r"\$([0-9,]+)", html)
             # Every other value starting from index 1 should be volume
-            volume_values = all_dollars[1::2][:len(pnl_values)]
+            volume_values = all_dollars[1::2][: len(pnl_values)]
 
         # Build entries
         for i in range(min(limit, len(unique_addresses))):

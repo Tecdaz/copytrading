@@ -41,7 +41,7 @@ def fetch_top_traders(poly: PolyClient, limit: int = 20) -> list[LeaderboardEntr
 
     entries: list[LeaderboardEntry] = []
     for raw in raw_entries:
-        pnl = float(raw.get("pnl", 0))
+        pnl = float(raw.get("pnl", 0))  # type: ignore[arg-type]
         if pnl <= 0:
             continue  # Only traders with positive profit
 
@@ -50,7 +50,10 @@ def fetch_top_traders(poly: PolyClient, limit: int = 20) -> list[LeaderboardEntr
             continue
 
         username = str(raw.get("userName", f"{address[:10]}..."))
-        volume = float(raw.get("vol", 0))
+        volume = float(raw.get("vol", 0))  # type: ignore[arg-type]
+        x_username = str(raw.get("xUsername", ""))
+        verified_badge = bool(raw.get("verifiedBadge", False))
+        profile_image = str(raw.get("profileImage", ""))
 
         entries.append(
             LeaderboardEntry(
@@ -59,6 +62,9 @@ def fetch_top_traders(poly: PolyClient, limit: int = 20) -> list[LeaderboardEntr
                 pnl=pnl,
                 volume=volume,
                 profile_url=f"https://polymarket.com/profile/{address.lower()}",
+                x_username=x_username,
+                verified_badge=verified_badge,
+                profile_image=profile_image,
             )
         )
 
@@ -66,7 +72,7 @@ def fetch_top_traders(poly: PolyClient, limit: int = 20) -> list[LeaderboardEntr
     entries.sort(key=lambda e: e.volume, reverse=True)
     top = entries[:limit]
     for i, entry in enumerate(top, start=1):
-        entry.rank = i  # type: ignore[misc]
+        entry.rank = i
 
     return top
 
@@ -108,6 +114,11 @@ def main() -> None:
                 address=entry.address,
                 rank=entry.rank,
                 total_pnl=Decimal(str(entry.pnl)),
+                username=entry.username,
+                x_username=entry.x_username,
+                volume=Decimal(str(entry.volume)),
+                verified_badge=entry.verified_badge,
+                profile_image=entry.profile_image,
                 discovered_at=now,
                 profile_url=entry.profile_url,
             )

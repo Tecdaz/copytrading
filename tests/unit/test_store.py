@@ -143,9 +143,7 @@ class TestWalletRepo:
             store.prune_wallets_not_in(["0xkeep"])
 
             # The dropped wallet AND its paper_trades should be gone
-            trades = store.conn.execute(
-                "SELECT copied_from_wallet FROM paper_trades"
-            ).fetchall()
+            trades = store.conn.execute("SELECT copied_from_wallet FROM paper_trades").fetchall()
             assert [t[0] for t in trades] == ["0xkeep"]
 
     def test_prune_with_empty_active_list_is_noop(self) -> None:

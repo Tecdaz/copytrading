@@ -2,29 +2,25 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from typing import Any
 
 from copytrading.cronjobs.leaderboard_discovery import fetch_top_traders
-from copytrading.poly_client import PolyClient
-from tests.conftest import FakeHTTPClient
 
 
 class FakePoly:
     """Minimal PolyClient stub for fetch_top_traders tests."""
 
-    def __init__(self, raw_entries: list[dict]) -> None:
+    def __init__(self, raw_entries: list[dict[str, Any]]) -> None:
         self._raw = raw_entries
-        self.calls: list[dict] = []
+        self.calls: list[dict[str, Any]] = []
 
     def get_leaderboard(
         self,
         time_period: str = "DAY",
         limit: int = 50,
         order_by: str = "VOL",
-    ) -> list[dict]:
-        self.calls.append(
-            {"time_period": time_period, "limit": limit, "order_by": order_by}
-        )
+    ) -> list[dict[str, Any]]:
+        self.calls.append({"time_period": time_period, "limit": limit, "order_by": order_by})
         return self._raw
 
 
@@ -42,6 +38,26 @@ class TestFetchTopTraders:
         assert "loser1" not in usernames
         assert "winner1" in usernames
         assert "winner2" in usernames
+
+    def test_new_fields_are_passed_through(self) -> None:
+        raw = [
+            {
+                "proxyWallet": "0xaaa",
+                "userName": "trader1",
+                "pnl": 500,
+                "vol": 1000,
+                "xUsername": "@trader1",
+                "verifiedBadge": True,
+                "profileImage": "https://img.png",
+            },
+        ]
+        poly = FakePoly(raw)
+        entries = fetch_top_traders(poly, limit=20)  # type: ignore[arg-type]
+
+        assert len(entries) == 1
+        assert entries[0].x_username == "@trader1"
+        assert entries[0].verified_badge is True
+        assert entries[0].profile_image == "https://img.png"
 
     def test_filters_out_zero_pnl(self) -> None:
         raw = [

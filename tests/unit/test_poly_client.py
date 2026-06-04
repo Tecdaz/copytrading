@@ -171,9 +171,7 @@ class TestPolyClientGetLeaderboard:
         assert params == {"timePeriod": "DAY", "limit": 20, "orderBy": "PNL"}
 
     def test_leaderboard_default_time_period_is_day(self) -> None:
-        fake = FakeHTTPClient(
-            responses={"https://data-api.polymarket.com/v1/leaderboard": []}
-        )
+        fake = FakeHTTPClient(responses={"https://data-api.polymarket.com/v1/leaderboard": []})
 
         with patch("copytrading.poly_client.httpx.Client", return_value=fake):
             client = PolyClient()

@@ -25,6 +25,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.15",
+    "types-httplib2>=0.31.2.20260408",
 ]
 
 [tool.ruff]
