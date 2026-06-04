@@ -1,0 +1,4 @@
+{# Reusable empty-state placeholder.
+   The calling template should set `message` in its scope before including
+   this partial. If unset, the partial falls back to "No data yet". #}
+<div class="empty-state">{{ message|default("No data yet") }}</div>

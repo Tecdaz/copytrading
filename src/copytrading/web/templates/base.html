@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1024">
+  <title>copytrading dashboard</title>
+  <link rel="stylesheet" href="/static/css/dashboard.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+  <script src="/static/vendor/chart.umd.min.js" defer></script>
+  <script src="/static/js/dashboard.js" defer></script>
+</head>
+<body class="theme-dark">
+  <header class="topbar">
+    <h1>copytrading</h1>
+    <span class="muted">local dashboard</span>
+  </header>
+  <main class="grid">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

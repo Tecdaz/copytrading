@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section
+  id="panel-equity-curve"
+  class="panel panel-wide"
+  hx-get="/api/panel/equity-curve"
+  hx-trigger="every 5s"
+  hx-swap="outerHTML"
+>
+  {% include "panels/equity_curve.html" %}
+</section>
+
+<section
+  id="panel-open-positions"
+  class="panel"
+  hx-get="/api/panel/open-positions"
+  hx-trigger="every 5s"
+  hx-swap="outerHTML"
+>
+  {% include "panels/open_positions.html" %}
+</section>
+
+<section
+  id="panel-trade-history"
+  class="panel panel-wide"
+  hx-get="/api/panel/trade-history"
+  hx-trigger="every 5s"
+  hx-swap="outerHTML"
+>
+  {% include "panels/trade_history.html" %}
+</section>
+
+<section
+  id="panel-wallets"
+  class="panel"
+  hx-get="/api/panel/wallets"
+  hx-trigger="every 5s"
+  hx-swap="outerHTML"
+>
+  {% include "panels/wallets.html" %}
+</section>
+
+<section
+  id="panel-money-in-open"
+  class="panel card"
+  hx-get="/api/panel/money-in-open"
+  hx-trigger="every 5s"
+  hx-swap="outerHTML"
+>
+  <h2>Money in open</h2>
+  <div class="empty-state">No data yet</div>
+</section>
+
+<section
+  id="panel-pnl-open"
+  class="panel card"
+  hx-get="/api/panel/pnl-open"
+  hx-trigger="every 5s"
+  hx-swap="outerHTML"
+>
+  <h2>PnL of open</h2>
+  <div class="empty-state">No data yet</div>
+</section>
+
+<section
+  id="panel-pnl-historical"
+  class="panel card"
+  hx-get="/api/panel/pnl-historical"
+  hx-trigger="every 5s"
+  hx-swap="outerHTML"
+>
+  <h2>Historical PnL</h2>
+  <div class="empty-state">No data yet</div>
+</section>
+
+{% endblock %}

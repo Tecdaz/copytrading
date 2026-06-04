@@ -1,0 +1,27 @@
+{% if wallets %}
+<h2>Tracked wallets</h2>
+<table class="data">
+  <thead>
+    <tr>
+      <th>Rank</th>
+      <th>Username</th>
+      <th class="number">Total PnL</th>
+      <th>Last checked</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for w in wallets %}
+    <tr>
+      <td class="number">{{ w.rank }}</td>
+      <td>{{ w.username if w.username else w.address[:10] ~ "…" }}</td>
+      <td class="number">{{ w.total_pnl }}</td>
+      <td>{{ w.last_checked_at if w.last_checked_at else "never" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<h2>Tracked wallets</h2>
+{% set message = "No tracked wallets" %}
+{% include "partials/empty_state.html" %}
+{% endif %}

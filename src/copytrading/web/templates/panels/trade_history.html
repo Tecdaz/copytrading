@@ -1,0 +1,33 @@
+{% if all_trades %}
+<h2>Trade history</h2>
+<table class="data">
+  <thead>
+    <tr>
+      <th>Opened</th>
+      <th>Title</th>
+      <th>Side</th>
+      <th class="number">Entry</th>
+      <th class="number">Exit</th>
+      <th class="number">PnL</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t in all_trades %}
+    <tr>
+      <td>{{ t.opened_at }}</td>
+      <td>{{ t.market_title }}</td>
+      <td>{{ t.side }}</td>
+      <td class="number">{{ t.entry_price }}</td>
+      <td class="number">{{ t.exit_price if t.exit_price is not none else "—" }}</td>
+      <td class="number">{{ t.pnl }}</td>
+      <td>{{ t.status }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<h2>Trade history</h2>
+{% set message = "No trade history" %}
+{% include "partials/empty_state.html" %}
+{% endif %}

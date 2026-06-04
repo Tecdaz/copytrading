@@ -1,0 +1,29 @@
+{% if open_trades %}
+<h2>Open positions</h2>
+<table class="data">
+  <thead>
+    <tr>
+      <th>Title</th>
+      <th>Side</th>
+      <th class="number">Current value</th>
+      <th class="number">PnL %</th>
+      <th>Opened</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t in open_trades %}
+    <tr>
+      <td>{{ t.market_title }}</td>
+      <td>{{ t.side }}</td>
+      <td class="number">{{ t.current_value }}</td>
+      <td class="number">{{ t.percent_pnl }}%</td>
+      <td>{{ t.opened_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<h2>Open positions</h2>
+{% set message = "No open positions" %}
+{% include "partials/empty_state.html" %}
+{% endif %}

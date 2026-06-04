@@ -1,0 +1,11 @@
+{% if snapshots %}
+<h2>Equity curve</h2>
+<canvas id="equity-chart" width="800" height="240"></canvas>
+<script type="application/json" id="equity-data">{{ equities_json }}</script>
+{% else %}
+<h2>Equity curve</h2>
+<canvas id="equity-chart" width="800" height="240" hidden></canvas>
+<script type="application/json" id="equity-data">[]</script>
+{% set message = "No data yet" %}
+{% include "partials/empty_state.html" %}
+{% endif %}
