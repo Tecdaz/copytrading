@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 from copytrading.models import AccountSnapshot, Market, PaperTrade, Wallet
 from copytrading.store import Store
 from copytrading.web.app import create_app
+from copytrading.web.formatting import format_signed
 
 
 @pytest.fixture
@@ -346,3 +347,248 @@ class TestBindAddress:
         assert merged.get("port") == 8000
         # Defense-in-depth: bind must not be 0.0.0.0 anywhere.
         assert "0.0.0.0" not in str(call)
+
+
+# ---------------------------------------------------------------------------
+# Slice 3 aggregate-card fixtures + tests
+# REQ-WEB-6, REQ-WEB-7, REQ-WEB-8
+# ---------------------------------------------------------------------------
+
+
+def _seed_market_and_wallet(store: Store) -> None:
+    """Insert the FK parents a paper_trade needs (market + wallet)."""
+    store.upsert_market(
+        Market(
+            condition_id="cond-agg",
+            question="Aggregate card fixture market",
+            fetched_at=datetime(2024, 1, 1, tzinfo=UTC),
+        )
+    )
+    store.upsert_wallet(
+        Wallet(
+            address="0xagg1234567890",
+            rank=1,
+            total_pnl=Decimal("0"),
+            discovered_at=datetime(2024, 1, 1, tzinfo=UTC),
+        )
+    )
+
+
+@pytest.fixture
+def app_money_in_open_populated(tmp_path: Path) -> Iterator[TestClient]:
+    """Two open trades for money-in-open (REQ-WEB-6 happy path).
+
+    current_value = 1.00 and 2.50 → sum = 3.50.
+    """
+    db_path = tmp_path / "money_in_open.db"
+    with Store(db_path) as seed:
+        _seed_market_and_wallet(seed)
+        for cv, iv, opened in (
+            (Decimal("1.00"), Decimal("1.00"), datetime(2024, 1, 1, tzinfo=UTC)),
+            (Decimal("2.50"), Decimal("2.00"), datetime(2024, 1, 2, tzinfo=UTC)),
+        ):
+            seed.insert_paper_trade(
+                PaperTrade(
+                    copied_from_wallet="0xagg1234567890",
+                    market_condition_id="cond-agg",
+                    side="yes",
+                    size=Decimal("1"),
+                    entry_price=Decimal("0.5"),
+                    current_value=cv,
+                    initial_value=iv,
+                    market_title="Aggregate fixture",
+                    opened_at=opened,
+                )
+            )
+    app = create_app(db_path=db_path)
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.fixture
+def app_pnl_open_populated(tmp_path: Path) -> Iterator[TestClient]:
+    """Two open trades for pnl-open (REQ-WEB-7 happy path).
+
+    (cv=2.00, iv=1.00) → unrealized = +1.00
+    (cv=0.80, iv=1.00) → unrealized = -0.20
+    sum = +0.80 (signed).
+    """
+    db_path = tmp_path / "pnl_open.db"
+    with Store(db_path) as seed:
+        _seed_market_and_wallet(seed)
+        seed.insert_paper_trade(
+            PaperTrade(
+                copied_from_wallet="0xagg1234567890",
+                market_condition_id="cond-agg",
+                side="yes",
+                size=Decimal("1"),
+                entry_price=Decimal("0.5"),
+                current_value=Decimal("2.00"),
+                initial_value=Decimal("1.00"),
+                market_title="Pnl-open A",
+                opened_at=datetime(2024, 1, 1, tzinfo=UTC),
+            )
+        )
+        seed.insert_paper_trade(
+            PaperTrade(
+                copied_from_wallet="0xagg1234567890",
+                market_condition_id="cond-agg",
+                side="yes",
+                size=Decimal("1"),
+                entry_price=Decimal("0.5"),
+                current_value=Decimal("0.80"),
+                initial_value=Decimal("1.00"),
+                market_title="Pnl-open B",
+                opened_at=datetime(2024, 1, 2, tzinfo=UTC),
+            )
+        )
+    app = create_app(db_path=db_path)
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.fixture
+def app_pnl_historical_populated(tmp_path: Path) -> Iterator[TestClient]:
+    """Two closed trades for pnl-historical (REQ-WEB-8 happy path).
+
+    pnl = 1.50 and -0.25 → sum = +1.25 (signed).
+    """
+    db_path = tmp_path / "pnl_historical.db"
+    with Store(db_path) as seed:
+        _seed_market_and_wallet(seed)
+        for pnl, opened in (
+            (Decimal("1.50"), datetime(2024, 1, 1, tzinfo=UTC)),
+            (Decimal("-0.25"), datetime(2024, 1, 2, tzinfo=UTC)),
+        ):
+            seed.insert_paper_trade(
+                PaperTrade(
+                    copied_from_wallet="0xagg1234567890",
+                    market_condition_id="cond-agg",
+                    side="yes",
+                    size=Decimal("1"),
+                    entry_price=Decimal("0.5"),
+                    status="closed",
+                    pnl=pnl,
+                    market_title="Historical fixture",
+                    opened_at=opened,
+                    closed_at=opened,
+                )
+            )
+    app = create_app(db_path=db_path)
+    with TestClient(app) as client:
+        yield client
+
+
+# ---------------------------------------------------------------------------
+# REQ-WEB-6: money-in-open card — SUM(CAST(current_value AS REAL)) open trades
+# ---------------------------------------------------------------------------
+
+
+class TestMoneyInOpenPanel:
+    def test_sums_current_value_of_open_trades(
+        self, app_money_in_open_populated: TestClient
+    ) -> None:
+        # REQ-WEB-6 happy path: 2 open trades with current_value 1.00 and
+        # 2.50 must produce the literal "3.50" in the response. The route
+        # uses SUM(CAST(current_value AS REAL)) per spec wording.
+        response = app_money_in_open_populated.get("/api/panel/money-in-open")
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "3.50" in response.text
+
+    def test_shows_zero_when_no_open_trades(self, app_empty: TestClient) -> None:
+        # REQ-WEB-6 empty path: no open trades → SUM returns NULL → "0.00".
+        # Per spec the empty-state value is "0.00" (not an empty placeholder
+        # — the value is the sum, which is genuinely 0).
+        response = app_empty.get("/api/panel/money-in-open")
+
+        assert response.status_code == 200
+        assert "0.00" in response.text
+
+
+# ---------------------------------------------------------------------------
+# REQ-WEB-7: pnl-open card — signed SUM(current_value - initial_value) open
+# ---------------------------------------------------------------------------
+
+
+class TestPnlOpenPanel:
+    def test_computes_signed_unrealized_pnl(self, app_pnl_open_populated: TestClient) -> None:
+        # REQ-WEB-7 happy path: 2 open trades (cv=2.00,iv=1.00) and
+        # (cv=0.80,iv=1.00) → sum of (current-initial) = +0.80. The
+        # signed format ("+0.80") is the spec-mandated output.
+        response = app_pnl_open_populated.get("/api/panel/pnl-open")
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "+0.80" in response.text
+
+    def test_shows_zero_when_no_open_trades(self, app_empty: TestClient) -> None:
+        # REQ-WEB-7 empty path: no open trades → sum is 0 → "0.00" (no
+        # sign, per spec — the empty-state value is plain "0.00").
+        response = app_empty.get("/api/panel/pnl-open")
+
+        assert response.status_code == 200
+        assert "0.00" in response.text
+
+
+# ---------------------------------------------------------------------------
+# REQ-WEB-8: pnl-historical card — signed SUM(pnl) closed trades
+# ---------------------------------------------------------------------------
+
+
+class TestPnlHistoricalPanel:
+    def test_sums_signed_realized_pnl(self, app_pnl_historical_populated: TestClient) -> None:
+        # REQ-WEB-8 happy path: 2 closed trades with pnl 1.50 and -0.25
+        # → signed sum = +1.25. The "+" prefix is mandatory per spec.
+        response = app_pnl_historical_populated.get("/api/panel/pnl-historical")
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "+1.25" in response.text
+
+    def test_shows_zero_when_no_closed_trades(self, app_empty: TestClient) -> None:
+        # REQ-WEB-8 empty path: no closed trades → "0.00" (no sign).
+        response = app_empty.get("/api/panel/pnl-historical")
+
+        assert response.status_code == 200
+        assert "0.00" in response.text
+
+
+# ---------------------------------------------------------------------------
+# format_signed pure-function tests (used by all 3 aggregate routes)
+# ---------------------------------------------------------------------------
+
+
+class TestFormatSigned:
+    """Unit tests for the format_signed helper extracted for T3.2.
+
+    The helper is a pure function so we exercise all sign/mode combinations
+    directly — no DB, no TestClient, no fixtures. Triangulation: positive,
+    negative, zero, plus the unsigned mode used by money-in-open.
+    """
+
+    def test_positive_value_gets_plus_prefix(self) -> None:
+        # Signed mode (default) — positive values carry a leading "+".
+        assert format_signed(Decimal("1.234")) == "+1.23"
+
+    def test_negative_value_gets_minus_prefix(self) -> None:
+        # Signed mode (default) — negative values carry a leading "-".
+        assert format_signed(Decimal("-0.5")) == "-0.50"
+
+    def test_zero_value_has_no_sign(self) -> None:
+        # Per spec, "0.00 when no trades" must NOT show a "+" — zero is
+        # rendered without any sign, regardless of the mode.
+        assert format_signed(Decimal("0")) == "0.00"
+
+    def test_unsigned_mode_drops_positive_sign(self) -> None:
+        # Money-in-open uses unsigned mode — positive values render
+        # without the "+" prefix, matching the spec scenario that
+        # expects "3.50" (not "+3.50").
+        assert format_signed(Decimal("1.23"), signed=False) == "1.23"
+
+    def test_unsigned_mode_keeps_negative_sign(self) -> None:
+        # Defense-in-depth: even in unsigned mode, a negative value must
+        # still show the "-" so the user can read losses correctly. This
+        # is a regression guard — the helper must not silently flip sign.
+        assert format_signed(Decimal("-1.00"), signed=False) == "-1.00"
