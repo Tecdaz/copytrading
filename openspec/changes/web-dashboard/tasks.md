@@ -34,10 +34,10 @@ All 33 spec scenarios (8 storage + 25 web-dashboard) mapped below.
 
 ## Slice 3: 3 aggregate cards + README (PR 3)
 
-- [ ] **T3.1** [test-first] Add 6 tests in `test_web.py`: money-in-open (sum, 0.00), pnl-open (signed, 0.00), pnl-historical (signed, 0.00). Covers REQ-WEB-6,7,8.
-- [ ] **T3.2** [code] Add 3 panel routes in `web/routes.py`; use `SUM(CAST(... AS REAL))` per spec; recover via `Decimal(str(row[0]))`; format signed 2-decimal. Depends: T3.1.
-- [ ] **T3.3** [code] Create 3 panel partials in `web/templates/panels/`; add HTMX placeholders to `index.html`. Depends: T3.2.
-- [ ] **T3.4** [docs] Add "Run the dashboard" section to `README.md`: `uv run python -m copytrading.web` (127.0.0.1:8000, no auth, v1).
-- [ ] **T3.5** [verify] Full gate: `uv run pytest`, `mypy src tests`, `ruff check .`, `ruff format --check .` → all 0. Mark proposal success criteria ✅. **Rollback**: 3 routes + 3 partials + README; Slice 2 still serves 4 panels.
+- [x] **T3.1** [test-first] Add 6 tests in `test_web.py`: money-in-open (sum, 0.00), pnl-open (signed, 0.00), pnl-historical (signed, 0.00). Covers REQ-WEB-6,7,8.
+- [x] **T3.2** [code] Add 3 panel routes in `web/routes.py`; use `SUM(CAST(... AS REAL))` per spec; recover via `Decimal(str(row[0]))`; format signed 2-decimal. Depends: T3.1.
+- [x] **T3.3** [code] Create 3 panel partials in `web/templates/panels/`; add HTMX placeholders to `index.html`. Depends: T3.2.
+- [x] **T3.4** [docs] Add "Run the dashboard" section to `README.md`: `uv run python -m copytrading.web` (127.0.0.1:8000, no auth, v1).
+- [x] **T3.5** [verify] Full gate: `uv run pytest`, `mypy src tests`, `ruff check .`, `ruff format --check .` → all 0. Mark proposal success criteria ✅. **Rollback**: 3 routes + 3 partials + README; Slice 2 still serves 4 panels.
 
 Slice order `1 → 2 → 3`, each merges to `main`. Reverts safe (additive only).
