@@ -61,6 +61,22 @@ uv run python -m copytrading.cronjobs.account_tracker
 */15 * * * * cd /path/to/copytrading && uv run python -m copytrading.cronjobs.account_tracker
 ```
 
+## Run the dashboard
+
+The web dashboard is a local-only FastAPI server that visualizes the live
+SQLite state in your browser.
+
+```bash
+uv run python -m copytrading.web
+```
+
+Then open <http://127.0.0.1:8000> in a desktop browser (≥1024px wide).
+
+- **Local only**: binds to `127.0.0.1:8000`, no public exposure.
+- **No auth (v1)**: do not run on a public network.
+- **Polling**: HTMX refreshes all 7 panels every 5 seconds — no client-side state.
+- **No CDN**: HTMX and Chart.js are vendored under `src/copytrading/web/static/vendor/`.
+
 ## Development
 
 ```bash
