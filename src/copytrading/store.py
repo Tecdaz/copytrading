@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS wallets (
     total_pnl TEXT NOT NULL,
     discovered_at TEXT NOT NULL,
     last_checked_at TEXT,
-    profile_url TEXT NOT NULL DEFAULT ''
+    profile_url TEXT NOT NULL DEFAULT '',
+    username TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS markets (
@@ -106,7 +107,11 @@ class Store:
         self._conn: sqlite3.Connection | None = None
 
     def __enter__(self) -> Self:
-        self._conn = sqlite3.connect(self._db_path)
+        # check_same_thread=False is required for FastAPI's async dependency
+        # injection: the generator opens the connection in a threadpool thread
+        # but the cleanup (__exit__) runs in the main event-loop thread.
+        # Safe for the read-only dashboard and for the single-threaded cronjobs.
+        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(_SCHEMA)
@@ -129,14 +134,15 @@ class Store:
     def upsert_wallet(self, wallet: Wallet) -> None:
         self.conn.execute(
             """INSERT INTO wallets (
-                   address, rank, total_pnl, discovered_at, last_checked_at, profile_url
+                   address, rank, total_pnl, discovered_at, last_checked_at, profile_url, username
                )
-               VALUES (?, ?, ?, ?, ?, ?)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(address) DO UPDATE SET
                    rank=excluded.rank,
                    total_pnl=excluded.total_pnl,
                    last_checked_at=excluded.last_checked_at,
-                   profile_url=excluded.profile_url""",
+                   profile_url=excluded.profile_url,
+                   username=excluded.username""",
             (
                 wallet.address,
                 wallet.rank,
@@ -144,13 +150,15 @@ class Store:
                 wallet.discovered_at.isoformat(),
                 wallet.last_checked_at.isoformat() if wallet.last_checked_at else None,
                 wallet.profile_url,
+                wallet.username,
             ),
         )
         self.conn.commit()
 
     def get_all_wallets(self) -> list[Wallet]:
         rows = self.conn.execute(
-            "SELECT address, rank, total_pnl, discovered_at, last_checked_at, profile_url "
+            "SELECT address, rank, total_pnl, discovered_at, last_checked_at, "
+            "profile_url, username "
             "FROM wallets ORDER BY rank"
         ).fetchall()
         return [
@@ -161,6 +169,7 @@ class Store:
                 discovered_at=datetime.fromisoformat(r[3]),
                 last_checked_at=datetime.fromisoformat(r[4]) if r[4] else None,
                 profile_url=r[5] if r[5] else "",
+                username=r[6] if r[6] else "",
             )
             for r in rows
         ]
