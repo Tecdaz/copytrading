@@ -49,6 +49,7 @@ reads.
 | 5 | Bind to 127.0.0.1 | `__main__.py` calls `uvicorn.run(..., host="127.0.0.1", port=8000)` explicitly | Document host in README only | Doc-only = unverifiable | Explicit `host=` is testable via `mock.patch(uvicorn.run)`. |
 | 6 | HTMX + Chart.js delivery | Vendored `.min.js` under `static/vendor/` with `NOTICE` for MIT attribution | CDN at runtime | Offline-hostile, license risk | Spec forbids CDN; vendoring is the only compliant option. |
 | 7 | Chart re-render | One global `htmx:afterSwap` listener in `dashboard.js` reads `#equity-data` JSON island and calls `chart.update()` | Per-panel inline scripts | Inline scripts = harder to test, harder to cache | Single listener = one render path; Chart.js instance held in module scope. |
+| 8 | Decimal → str formatting in routes | Dedicated pure helper `format_signed(value, places=2, *, signed=True) -> str` in `web/formatting.py` shared by all 3 aggregate routes | Inline `f"{value:+.2f}"` in each route | Format string duplicated, sign semantics split across 3 sites | Pure function = unit-testable in isolation (5 direct cases); one source of truth for "zero has no sign, positive gets `+`, negative gets `-`"; `signed=False` mode for money-in-open (no `+` on positive). |
 
 ## File Changes
 
