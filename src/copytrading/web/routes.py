@@ -1,6 +1,6 @@
 """HTTP routes for the dashboard.
 
-Layout (one :class:`APIRouter`, 8 endpoints) follows design.md §Routes. All
+Layout (one :class:`APIRouter`, 9 endpoints) follows design.md §Routes. All
 mutating methods (POST/PUT/PATCH/DELETE) are rejected by FastAPI itself
 because only GET handlers are registered — REQ-WEB-14.
 """
@@ -38,12 +38,15 @@ def index(request: Request, store: StoreDep) -> HTMLResponse:
     every 5 seconds.
     """
     snapshots = store.get_all_snapshots()
+    latest_equity = snapshots[-1].equity if snapshots else Decimal("0")
     open_trades = store.get_open_paper_trades()
     all_trades = store.get_all_paper_trades()
     wallets = store.get_all_wallets()
     money_in_open = format_signed(_sum_open_current_value(store), signed=False)
     pnl_open = format_signed(_sum_open_unrealized(store))
     pnl_historical = format_signed(_sum_closed_pnl(store))
+    # Daily gain: difference between last and first snapshot equity today
+    daily_gain = latest_equity - snapshots[0].equity if len(snapshots) >= 2 else Decimal("0")
     return cast(
         HTMLResponse,
         request.app.state.templates.TemplateResponse(
@@ -51,6 +54,8 @@ def index(request: Request, store: StoreDep) -> HTMLResponse:
             "index.html",
             {
                 "snapshots": snapshots,
+                "latest_equity": latest_equity,
+                "daily_gain": daily_gain,
                 "open_trades": open_trades,
                 "all_trades": all_trades,
                 "wallets": wallets,
@@ -217,6 +222,25 @@ def panel_pnl_historical(request: Request, store: StoreDep) -> HTMLResponse:
             request,
             "panels/pnl_historical.html",
             {"total": total},
+        ),
+    )
+
+
+@router.get("/api/panel/kpi-equity", response_class=HTMLResponse)
+def panel_kpi_equity(request: Request, store: StoreDep) -> HTMLResponse:
+    """Equity KPI card: latest snapshot value + daily gain."""
+    snapshots = store.get_all_snapshots()
+    latest_equity = snapshots[-1].equity if snapshots else Decimal("0")
+    daily_gain = latest_equity - snapshots[0].equity if len(snapshots) >= 2 else Decimal("0")
+    return cast(
+        HTMLResponse,
+        request.app.state.templates.TemplateResponse(
+            request,
+            "panels/kpi_equity.html",
+            {
+                "latest_equity": latest_equity,
+                "daily_gain": daily_gain,
+            },
         ),
     )
 
