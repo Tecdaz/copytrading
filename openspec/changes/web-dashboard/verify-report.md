@@ -5,15 +5,32 @@
 **Mode**: Strict TDD
 **Test runner**: `uv run pytest`
 **Branch**: master (pushed to origin/master, working tree clean)
-**Verification date**: 2026-06-04
+**Verification date**: 2026-06-08 (re-verified after WARNING fixes)
 **Persistence**: hybrid (this file + Engram `sdd/web-dashboard/verify-report`)
+
+## Re-verification (2026-06-08)
+
+After 9 commits addressing the previous PASS WITH WARNINGS verdict, all issues are resolved:
+
+| Issue | Previous | Now |
+|-------|----------|-----|
+| SQLite thread bug (showstopper) | N/A (discovered) | ✅ `check_same_thread=False` |
+| `format_signed` undocumented | ⚠️ WARNING | ✅ Design Decision #8 |
+| `__main__.py` hardcodes `db_path` | ⚠️ WARNING | ✅ `_resolve_db_path()` + `COPYTRADING_DB_PATH` |
+| `wallets.username` schema mismatch | ⚠️ WARNING | ✅ Column added to schema + upsert + select |
+| REQ-WEB-12 `<link>` not asserted | ⚠️ PARTIAL | ✅ `test_index_links_to_local_stylesheet` |
 
 ## Build / Tests / Coverage Evidence
 
-- **pytest**: 143 passed, 0 failed, 1 warning (StarletteDeprecationWarning about httpx in starlette.testclient — external, not in our code). Exit code 0.
+- **pytest**: 145 passed (was 143), 0 failed, 1 warning (httpx deprecation — external). Exit code 0.
 - **mypy** (`uv run mypy src tests`): Success: no issues found in 32 source files.
 - **ruff check** (`uv run ruff check .`): All checks passed.
-- **ruff format --check** (`uv run ruff format --check .`): 32 files already formatted.
+- **ruff format --check** (`uv run ruff format --check .`): 33 files already formatted (was 32).
+- **Tasks**: 20/20 [x], 0 [ ] — all complete.
+- **Design**: format_signed documented as Decision #8.
+- **Schema**: wallets.username column present and round-tripping in tests.
+- **DB path**: `_resolve_db_path()` reads `COPYTRADING_DB_PATH` env, no longer requires Google Sheets vars.
+- **Store**: `check_same_thread=False` for FastAPI async dependency generator.
 - **coverage** (changed files only, with `pytest-cov 7.1.0`):
 
 | File | Stmts | Miss | Cover | Missing lines |
@@ -145,7 +162,7 @@ I scanned all 3 new/modified test files for trivial assertions. Findings:
 | **`__main__.py` hardcodes `db_path="copytrading.db"`** | `__main__.py::main()` L27: `create_app(db_path="copytrading.db")` | ⚠️ Design deviation (no spec scenario mandates configurability) |
 | **`wallets.username` field in `models.Wallet` but no `username` column in `wallets` table** | `models.py::Wallet` (has `username: str = ""`); `store.py` schema (no `username` column); `templates/panels/wallets.html` L16 falls back to `address[:10] + "…"` | ⚠️ Pre-existing core-infra debt, not web-dashboard |
 
-## Issues
+## Issues (Re-verified 2026-06-08)
 
 ### CRITICAL
 
@@ -153,58 +170,21 @@ None.
 
 ### WARNING
 
-1. **`format_signed` helper is not documented in `design.md`.** It is a new pure function introduced in Slice 3 to centralize Decimal→str formatting. The function has both `signed=True` (default, used by PnL cards per REQ-WEB-7/8) and `signed=False` (used by money-in-open per REQ-WEB-6). The implementation is correct, the unit tests are strong (5 cases covering all sign × mode combinations including a negative-in-unsigned-mode regression guard), and the route handlers wire it correctly. Recommend a follow-up commit to `openspec/changes/web-dashboard/design.md` adding a §"Pure formatting helpers" entry documenting `format_signed`.
-
-2. **`__main__.py` hardcodes `db_path="copytrading.db"`.** The `Settings` class (referenced in apply-progress) does not yet expose `db_path`. Spec REQ-WEB-13 binds to `127.0.0.1:8000` and does NOT require configurable `db_path`. Acceptable for v1, but should be revisited when `Settings` is extended.
-
-3. **`wallets.username` mismatch (model field, no schema column).** `copytrading.models.Wallet` declares `username: str = ""` and `x_username: str = ""`, but the `wallets` table in `store.py` schema has no `username` column. The template `wallets.html` L16 falls back to `w.username if w.username else w.address[:10] ~ "…"`. This is pre-existing core-infrastructure debt, not introduced by web-dashboard. The spec scenario for REQ-WEB-5 (tracked wallets) requires only the columns `rank`, `username` (or truncated `address`), `total_pnl`, `last_checked_at` — all of which are satisfied by the fallback path. No spec scenario requires a `username` column.
-
-4. **REQ-WEB-12 first sub-scenario is PARTIAL: `<link>` tag presence in index body is not explicitly asserted.** The CSS is served (200 + text/css asserted), but the spec also requires "the body of GET / SHALL contain a `<link>` tag pointing to `/static/css/dashboard.css`". The link is present in `base.html` L7 and behaviorally works (other tests rely on the page rendering, which would fail if the link were broken), but there is no explicit substring assertion. Recommend a one-line addition: `assert '/static/css/dashboard.css' in response.text` to one of the index tests. NOT a CRITICAL — the behavior is correct, the assertion is just not explicit.
+None — all 3 previous WARNINGs resolved.
 
 ### SUGGESTION
 
-1. **sdd-apply sub-agent empty-return pattern is recurring.** Both Slice 1 and Slice 3 sub-agents returned empty results (per apply-progress #162 — Slice 3 case described in detail). The orchestrator's recovery pattern (verify state, format, revert noise, commit in chunks) works but is wasteful and a process concern. Root cause: the sub-agent appears to be calling the Skill tool (which triggers the ORCHESTRATOR GATE) when it should be acting as the executor. Investigate the delegation prompt to ensure the sub-agent does not self-load `sdd-apply` via the `skill()` tool.
+1. **TDD Cycle Evidence table missing from apply-progress.** The strict-tdd-verify.md template expects a per-task RED/GREEN/TRIANGULATE/SAFETY NET/REFACTOR table. The actual apply-progress #165 is a recovery note with `[test-first]` tags in tasks.md serving as proxy evidence. Recommended for process improvement, not blocking.
 
-2. **TDD Cycle Evidence table missing from apply-progress.** The strict-tdd-verify.md template expects a per-task RED/GREEN/TRIANGULATE/SAFETY NET/REFACTOR table in the apply-progress artifact. The actual apply-progress #162 is a recovery note; the TDD evidence is embedded in tasks.md `[test-first]` tags and "Covers" annotations. Recommend updating the `sdd-apply` skill to mandate the evidence table even when recovery is needed.
-
-3. **httpx deprecation warning from FastAPI testclient.** External (starlette/httpx), not actionable in this change. Track upstream.
-
-## Spec-to-Test Trace (proof of coverage for the 25 web-dashboard scenarios)
-
-I verified each spec scenario's covering test passed at runtime. Cross-references:
-
-- **Index (2)** → `TestIndexPage` (2 tests, both pass).
-- **Equity curve (2)** → `TestEquityCurvePanel` (2 tests, both pass). The empty-state assertion checks both `[]` in the data island AND `No data yet` in the rendered text.
-- **Open positions (2)** → `TestOpenPositionsPanel` (2 tests, both pass). The "lists open trades only" property is split: route-level (panel renders the open row) + store-level (only open status is fetched — see scenario #5 of storage).
-- **Trade history (3)** → `TestTradeHistoryPanel` (2 tests) + `test_store.py::TestPaperTradeRepo::test_get_all_paper_trades_*` (3 store-level tests covering the DESC/500-cap/LIMIT-at-SQL contract). Route uses `get_all_paper_trades(limit=500)`.
-- **Tracked wallets (2)** → `TestWalletsPanel` (2 tests) + `test_store.py::TestWalletRepo::test_get_all_ordered_by_rank` (ASC-by-rank ordering verified at store level).
-- **Money in open (2)** → `TestMoneyInOpenPanel` (2 tests). The happy-path assertion is the exact `3.50` literal per spec wording.
-- **PnL of open (2)** → `TestPnlOpenPanel` (2 tests). The happy-path assertion is the exact `+0.80` literal (signed format).
-- **Historical PnL (2)** → `TestPnlHistoricalPanel` (2 tests). The happy-path assertion is the exact `+1.25` literal.
-- **5s polling (1)** → `TestServingAndBind::test_index_contains_every_5s_trigger_at_least_7_times` (asserts `>= 7`). Verified independently: `grep -c "every 5s" src/copytrading/web/templates/index.html` → 7.
-- **Local Chart.js (2)** → `TestServingAndBind::test_vendor_chart_umd_is_served_from_static` + `test_index_does_not_reference_cdn_hosts`. Verified independently: no CDN hosts (`cdn.jsdelivr.net`, `unpkg.com`, `cdnjs.cloudflare.com`) in any served file.
-- **Empty-state per panel (1)** → Covered by 5 individual empty-state tests across the 4 table panels + 3 aggregate cards.
-- **Dark-mode CSS (2)** → `TestServingAndBind::test_css_includes_neon_and_monospace_markers` (asserts `text/css`, monospace tokens, cyan/violet hex).
-- **Loopback bind (1)** → `TestBindAddress::test_main_module_passes_loopback_host` (asserts `host="127.0.0.1"`, `port=8000`, defense-in-depth check that `"0.0.0.0" not in str(call)`).
-- **Read-only (1)** → `TestServingAndBind::test_post_to_index_is_rejected_with_405` (loops over 3 paths, all assert 405).
+2. **sdd-apply sub-agent empty-return pattern** (Slice 1 and Slice 3 both returned empty despite completing the work correctly). Investigate the delegation prompt for the agent — appears to load `sdd-apply` via the `skill()` tool, triggering the ORCHESTRATOR GATE that tells it to stop. Process improvement, not blocking.
 
 ## Final Verdict
 
-**PASS WITH WARNINGS**
+**PASS**
 
-The `web-dashboard` change meets its core contract:
-- All 33 spec scenarios (8 storage + 25 web-dashboard) have covering tests that pass at runtime.
-- All 20 planned tasks are complete.
-- Full quality gate is green: 143/143 tests, mypy strict clean, ruff check + format clean, 95% average coverage of changed files with 100% coverage of all new code.
-- The 14 implementation commits are on `master` and pushed to `origin/master`.
-- Working tree is clean, no WIP debt.
+All 33 spec scenarios are COMPLIANT with passing runtime tests. All 4 previous WARNINGs and 1 PARTIAL resolved in 9 follow-up commits. Full quality gate green: 145/145 tests, mypy strict clean, ruff check + format clean. Working tree clean, 23 implementation commits on `master`/`origin/master`. The SQLite thread-safety bug (showstopper found during Playwright testing) is fixed with `check_same_thread=False`.
 
-The 3 WARNINGs are non-blocking quality / documentation items, not spec violations. The 1 PARTIAL is a missing assertion (not a missing behavior). The change is **ready for `sdd-archive`** with a follow-up change recommended to address the WARNINGs.
-
-## Recommendations
-
-1. **Proceed to `sdd-archive`.** The core work is verified and complete.
-2. **Open a follow-up change to address the WARNINGs:** document `format_signed` in `design.md`, add the `<link>`-tag assertion to a test, and document the `wallets.username` schema-model mismatch in a core-infrastructure ticket.
+Ready for `sdd-archive`.
 3. **Process improvement (not blocking):** investigate the recurring sdd-apply sub-agent empty-return pattern; mandate a TDD Cycle Evidence table in apply-progress even on recovery.
 
 ## Relevant Files
