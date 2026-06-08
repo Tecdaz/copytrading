@@ -49,6 +49,7 @@ def app_with_db(tmp_path: Path) -> Iterator[TestClient]:
                 total_pnl=Decimal("100"),
                 discovered_at=datetime(2024, 1, 1, tzinfo=UTC),
                 last_checked_at=datetime(2024, 1, 2, tzinfo=UTC),
+                username="trader_jane",
             )
         )
         seed.insert_paper_trade(
@@ -130,6 +131,26 @@ class TestIndexPage:
             "panel-pnl-historical",
         ):
             assert panel in response.text, f"missing panel hook: {panel}"
+
+    def test_index_links_to_local_stylesheet(self, app_empty: TestClient) -> None:
+        # REQ-WEB-12: the dashboard MUST link the local stylesheet
+        # (no external CDN). The <link rel="stylesheet" href="..."> tag
+        # must point at the vendored /static/css/dashboard.css, not at a
+        # public CDN host.
+        response = app_empty.get("/")
+
+        assert response.status_code == 200
+        body = response.text
+        # The stylesheet is served from the local /static mount.
+        assert "/static/css/dashboard.css" in body
+        # And it MUST NOT be served from any CDN host.
+        for forbidden in (
+            "cdn.jsdelivr.net",
+            "unpkg.com",
+            "cdnjs.cloudflare.com",
+            "googleapis.com",
+        ):
+            assert forbidden not in body, f"index references CDN host: {forbidden}"
 
 
 # ---------------------------------------------------------------------------
@@ -225,14 +246,14 @@ class TestTradeHistoryPanel:
 
 class TestWalletsPanel:
     def test_renders_seeded_wallet(self, app_with_db: TestClient) -> None:
-        # Pre-condition: with one wallet the panel renders the address
-        # prefix (the schema has no `username` column yet — the template's
-        # address fallback is the realistic render path) and the total PnL.
+        # Pre-condition: with one wallet that has a username, the panel
+        # renders the username (the schema now has a `username` column
+        # that round-trips) and the total PnL.
         response = app_with_db.get("/api/panel/wallets")
 
         assert response.status_code == 200
         body = response.text
-        assert "0xabcdef12" in body  # address[:10]
+        assert "trader_jane" in body  # username from the seed
         assert "100" in body  # total_pnl=100 from the seed
 
     def test_empty_state_when_no_wallets(self, app_empty: TestClient) -> None:
@@ -308,11 +329,11 @@ class TestServingAndBind:
         assert any(token in body for token in ("JetBrains Mono", "Fira Code", "monospace")), (
             "CSS missing monospace font-family token"
         )
-        # A cyan or violet hex color must be present (any of the spec's
-        # accepted values).
-        assert any(token in body for token in ("#0ff", "#0ea5e9", "#8b5cf6", "#a855f7")), (
-            "CSS missing cyan or violet hex color"
-        )
+        # A cyan, purple, or green hex from the neo-futuristic palette must
+        # be present (any of the spec's accepted accent values).
+        assert any(
+            token in body for token in ("#00c8ff", "#00e5ff", "#7c3aed", "#00ff9d", "#ff4d67")
+        ), "CSS missing accent color token"
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +368,23 @@ class TestBindAddress:
         assert merged.get("port") == 8000
         # Defense-in-depth: bind must not be 0.0.0.0 anywhere.
         assert "0.0.0.0" not in str(call)
+
+    def test_main_module_reads_db_path_from_env(self) -> None:
+        # The DB path must be configurable via COPYTRADING_DB_PATH (so an
+        # operator can point the dashboard at a different DB without
+        # editing source). The default falls back to "copytrading.db".
+        # The helper is pure: no uvicorn, no HTTP, no fixtures.
+        import os
+
+        from copytrading.web import __main__ as web_main
+
+        # Default — env var unset → "copytrading.db"
+        with mock.patch.dict(os.environ, {}, clear=True):
+            assert web_main._resolve_db_path() == Path("copytrading.db")
+
+        # Override — env var set → that path
+        with mock.patch.dict(os.environ, {"COPYTRADING_DB_PATH": "/tmp/alt.db"}):
+            assert web_main._resolve_db_path() == Path("/tmp/alt.db")
 
 
 # ---------------------------------------------------------------------------
