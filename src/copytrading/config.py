@@ -20,6 +20,7 @@ class Settings:
     google_sheets_credentials_path: Path
     google_sheet_id: str
     google_token_path: Path = Path(".google_token.json")
+    db_path: Path = Path("copytrading.db")
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -32,6 +33,7 @@ class Settings:
         creds_path = os.environ.get("GOOGLE_SHEETS_CREDENTIALS_PATH")
         sheet_id = os.environ.get("GOOGLE_SHEET_ID")
         token_path = os.environ.get("GOOGLE_TOKEN_PATH", ".google_token.json")
+        db_path = os.environ.get("COPYTRADING_DB_PATH", "copytrading.db")
 
         missing: list[str] = []
         if not creds_path:
@@ -50,4 +52,5 @@ class Settings:
             google_sheets_credentials_path=Path(creds_path),
             google_sheet_id=sheet_id,
             google_token_path=Path(token_path),
+            db_path=Path(db_path),
         )
