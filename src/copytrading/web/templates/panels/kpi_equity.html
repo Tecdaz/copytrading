@@ -1,0 +1,12 @@
+{# kpi_equity.html — KPI card: latest equity + daily gain #}
+<div class="kpi-label">Equity</div>
+<div class="kpi-value accent">${{ "%.2f" | format(latest_equity) }}</div>
+<div class="kpi-sub">
+  {% if daily_gain > 0 %}
+  <span class="badge-long">+${{ "%.2f" | format(daily_gain) }}</span> today
+  {% elif daily_gain < 0 %}
+  <span class="badge-short">-${{ "%.2f" | format(daily_gain | abs) }}</span> today
+  {% else %}
+  $0.00 today
+  {% endif %}
+</div>

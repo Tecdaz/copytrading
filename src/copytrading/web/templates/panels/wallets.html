@@ -1,25 +1,18 @@
+{# wallets.html — Tracked wallets panel #}
 {% if wallets %}
 <h2>Tracked wallets</h2>
-<table class="data">
-  <thead>
-    <tr>
-      <th>Rank</th>
-      <th>Username</th>
-      <th class="number">Total PnL</th>
-      <th>Last checked</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for w in wallets %}
-    <tr>
-      <td class="number">{{ w.rank }}</td>
-      <td>{{ w.username if w.username else w.address[:10] ~ "…" }}</td>
-      <td class="number">{{ w.total_pnl }}</td>
-      <td>{{ w.last_checked_at if w.last_checked_at else "never" }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+{% for w in wallets %}
+<div class="wallet-row">
+  <div class="wallet-avatar">{{ (w.username or w.address)[:2] | upper }}</div>
+  <div class="wallet-info">
+    <div class="wallet-name">{{ w.username or "Wallet" }}</div>
+    <div class="wallet-addr">{{ w.address[:6] }}…{{ w.address[-4:] }}</div>
+  </div>
+  <div class="wallet-pnl {{ 'green' if w.total_pnl > 0 else 'red' if w.total_pnl < 0 else '' }}">
+    {{ "%+.2f" | format(w.total_pnl) }}%
+  </div>
+</div>
+{% endfor %}
 {% else %}
 <h2>Tracked wallets</h2>
 {% set message = "No tracked wallets" %}

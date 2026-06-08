@@ -1,2 +1,6 @@
-<h2>PnL of open</h2>
-<div class="card-value number">{{ total }} USDC</div>
+{# pnl_open.html — KPI card: unrealized PnL (signed) #}
+<div class="kpi-label">Unrealized PnL</div>
+<div class="kpi-value {% if total.startswith('+') %}green{% elif total.startswith('-') %}red{% else %}muted{% endif %}">
+  ${{ total }}
+</div>
+<div class="kpi-sub">Open positions</div>

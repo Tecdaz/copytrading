@@ -2,74 +2,103 @@
 
 {% block content %}
 
-<section
-  id="panel-equity-curve"
-  class="panel panel-wide"
-  hx-get="/api/panel/equity-curve"
-  hx-trigger="every 5s"
-  hx-swap="outerHTML"
->
-  {% include "panels/equity_curve.html" %}
-</section>
+<div class="main-grid">
 
-<section
-  id="panel-open-positions"
-  class="panel"
-  hx-get="/api/panel/open-positions"
-  hx-trigger="every 5s"
-  hx-swap="outerHTML"
->
-  {% include "panels/open_positions.html" %}
-</section>
+  <!-- ===== KPI Cards Row ===== -->
+  <div class="kpi-row">
 
-<section
-  id="panel-trade-history"
-  class="panel panel-wide"
-  hx-get="/api/panel/trade-history"
-  hx-trigger="every 5s"
-  hx-swap="outerHTML"
->
-  {% include "panels/trade_history.html" %}
-</section>
+    <section
+      id="kpi-equity"
+      class="kpi-card"
+      hx-get="/api/panel/kpi-equity"
+      hx-trigger="every 5s"
+      hx-swap="outerHTML"
+    >
+      {% include "panels/kpi_equity.html" %}
+    </section>
 
-<section
-  id="panel-wallets"
-  class="panel"
-  hx-get="/api/panel/wallets"
-  hx-trigger="every 5s"
-  hx-swap="outerHTML"
->
-  {% include "panels/wallets.html" %}
-</section>
+    <section
+      id="panel-money-in-open"
+      class="kpi-card"
+      hx-get="/api/panel/money-in-open"
+      hx-trigger="every 5s"
+      hx-swap="outerHTML"
+    >
+      {% with total = money_in_open %}
+      {% include "panels/money_in_open.html" %}
+      {% endwith %}
+    </section>
 
-<section
-  id="panel-money-in-open"
-  class="panel card"
-  hx-get="/api/panel/money-in-open"
-  hx-trigger="every 5s"
-  hx-swap="outerHTML"
->
-  {% include "panels/money_in_open.html" %}
-</section>
+    <section
+      id="panel-pnl-open"
+      class="kpi-card"
+      hx-get="/api/panel/pnl-open"
+      hx-trigger="every 5s"
+      hx-swap="outerHTML"
+    >
+      {% with total = pnl_open %}
+      {% include "panels/pnl_open.html" %}
+      {% endwith %}
+    </section>
 
-<section
-  id="panel-pnl-open"
-  class="panel card"
-  hx-get="/api/panel/pnl-open"
-  hx-trigger="every 5s"
-  hx-swap="outerHTML"
->
-  {% include "panels/pnl_open.html" %}
-</section>
+    <section
+      id="panel-pnl-historical"
+      class="kpi-card"
+      hx-get="/api/panel/pnl-historical"
+      hx-trigger="every 5s"
+      hx-swap="outerHTML"
+    >
+      {% with total = pnl_historical %}
+      {% include "panels/pnl_historical.html" %}
+      {% endwith %}
+    </section>
 
-<section
-  id="panel-pnl-historical"
-  class="panel card"
-  hx-get="/api/panel/pnl-historical"
-  hx-trigger="every 5s"
-  hx-swap="outerHTML"
->
-  {% include "panels/pnl_historical.html" %}
-</section>
+  </div>
+
+  <!-- ===== Equity Chart (wide, center) ===== -->
+  <section
+    id="panel-equity-curve"
+    class="panel panel-wide panel-chart"
+    hx-get="/api/panel/equity-curve"
+    hx-trigger="every 5s"
+    hx-swap="outerHTML"
+  >
+    {% include "panels/equity_curve.html" %}
+  </section>
+
+  <!-- ===== Tracked Wallets (side column) ===== -->
+  <section
+    id="panel-wallets"
+    class="panel"
+    hx-get="/api/panel/wallets"
+    hx-trigger="every 5s"
+    hx-swap="outerHTML"
+  >
+    {% include "panels/wallets.html" %}
+  </section>
+
+  <!-- ===== Open Positions Table (full width) ===== -->
+  <section
+    id="panel-open-positions"
+    class="panel panel-full"
+    hx-get="/api/panel/open-positions"
+    hx-trigger="every 5s"
+    hx-swap="outerHTML"
+  >
+    {% include "panels/open_positions.html" %}
+  </section>
+
+  <!-- ===== Trade History Table (full width) ===== -->
+  <section
+    id="panel-trade-history"
+    class="panel panel-full"
+    hx-get="/api/panel/trade-history"
+    hx-trigger="every 5s"
+    hx-swap="outerHTML"
+  >
+    {% include "panels/trade_history.html" %}
+  </section>
+
+</div>
 
 {% endblock %}

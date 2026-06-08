@@ -1,10 +1,18 @@
+{# equity_curve.html — Chart + data island + range controls #}
 {% if snapshots %}
 <h2>Equity curve</h2>
-<canvas id="equity-chart" width="800" height="240"></canvas>
-<script type="application/json" id="equity-data">{{ equities_json }}</script>
+<canvas id="equity-chart" height="240"></canvas>
+<script type="application/json" id="equity-data">{{ equities_json | safe }}</script>
+<nav class="chart-controls">
+  <button class="chart-btn active">ALL</button>
+  <button class="chart-btn">90D</button>
+  <button class="chart-btn">30D</button>
+  <button class="chart-btn">7D</button>
+  <button class="chart-btn">1D</button>
+</nav>
 {% else %}
 <h2>Equity curve</h2>
-<canvas id="equity-chart" width="800" height="240" hidden></canvas>
+<canvas id="equity-chart" height="240"></canvas>
 <script type="application/json" id="equity-data">[]</script>
 {% set message = "No data yet" %}
 {% include "partials/empty_state.html" %}

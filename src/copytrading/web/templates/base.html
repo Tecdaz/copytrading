@@ -9,12 +9,19 @@
   <script src="/static/vendor/chart.umd.min.js" defer></script>
   <script src="/static/js/dashboard.js" defer></script>
 </head>
-<body class="theme-dark">
+<body>
   <header class="topbar">
-    <h1>copytrading</h1>
-    <span class="muted">local dashboard</span>
+    <div class="topbar-brand">
+      <div class="topbar-logo">CT</div>
+      <h1>copytrading</h1>
+    </div>
+    <div class="topbar-meta">
+      <div class="topbar-status">
+        <span class="pulse"></span> live
+      </div>
+    </div>
   </header>
-  <main class="grid">
+  <main>
     {% block content %}{% endblock %}
   </main>
 </body>
