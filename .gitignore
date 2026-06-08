@@ -12,3 +12,6 @@ logs/
 dist/
 build/
 .google_token.json
+.coverage
+.playwright-mcp/
+dashboard-*.png
